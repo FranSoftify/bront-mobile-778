@@ -447,7 +447,7 @@ export default function DashboardScreen() {
           {recommendations.length === 0 ? (
             <View style={styles.emptyStateCard}>
               <View style={styles.emptyStateIconContainer}>
-                <Sparkles size={28} color={Colors.dark.primary} />
+                <Sparkles size={28} color={Colors.dark.textSecondary} />
               </View>
               <Text style={styles.emptyStateTitle}>All caught up!</Text>
               <Text style={styles.emptyStateSubtitle}>
