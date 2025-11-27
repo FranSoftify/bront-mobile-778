@@ -40,7 +40,7 @@ const APP_VERSION = "1.0.0";
 export default function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
-  const { profile, selectedAdAccounts, adAccountFilter, setAdAccountFilter } = useBrontData();
+  const { profile, subscriptionTier, selectedAdAccounts, adAccountFilter, setAdAccountFilter } = useBrontData();
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
 
   const handlePress = async (action: () => void) => {
@@ -149,7 +149,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                   </View>
                   <View>
                     <Text style={styles.menuItemLabel}>Subscription Plan</Text>
-                    <Text style={styles.menuItemValue}>Pro Plan</Text>
+                    <Text style={styles.menuItemValue}>{subscriptionTier ? `${subscriptionTier.charAt(0).toUpperCase()}${subscriptionTier.slice(1)} Plan` : 'Free Plan'}</Text>
                   </View>
                 </View>
                 <ExternalLink size={16} color={Colors.dark.textTertiary} />

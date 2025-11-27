@@ -25,6 +25,7 @@ export type AdAccountFilter = "all" | string;
 
 interface BrontDataContextType {
   profile: Profile | null | undefined;
+  subscriptionTier: string | null | undefined;
   monthlyGoal: MonthlyGoal | null | undefined;
   currentPerformance: { spend: number; revenue: number; purchases: number; roas: number } | null | undefined;
   dailyPerformance: DailyPerformance[];
@@ -138,6 +139,32 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         };
       } catch {
         return { id: user.id, full_name: user.email?.split('@')[0] || 'User', name: user.email?.split('@')[0] || 'User' };
+      }
+    },
+    enabled: !!user,
+  });
+
+  const subscriptionQuery = useQuery({
+    queryKey: ["subscription", user?.id],
+    queryFn: async (): Promise<string | null> => {
+      if (!user) return null;
+      
+      try {
+        const { data, error } = await supabase
+          .from('subscribers')
+          .select('subscription_tier')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (error) {
+          console.log('Error fetching subscription:', error.message);
+          return null;
+        }
+        
+        console.log('Subscription tier:', data?.subscription_tier);
+        return data?.subscription_tier || null;
+      } catch {
+        return null;
       }
     },
     enabled: !!user,
@@ -1020,6 +1047,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   return (
     <BrontDataContext.Provider value={{
       profile: profileQuery.data,
+      subscriptionTier: subscriptionQuery.data,
       monthlyGoal: monthlyGoalQuery.data,
       currentPerformance: currentPerformanceQuery.data,
       dailyPerformance: dailyPerformanceQuery.data || [],
