@@ -202,7 +202,7 @@ export default function MonthlyGoalsSheet({
               <View style={styles.inputGroup}>
                 <View style={styles.inputHeader}>
                   <View style={styles.inputIconContainer}>
-                    <Text style={styles.emoji}>✅</Text>
+                    <Text style={styles.emoji}>📈</Text>
                   </View>
                   <View>
                     <Text style={styles.inputLabel}>Desired Blended ROAS</Text>

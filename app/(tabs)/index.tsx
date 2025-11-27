@@ -393,7 +393,7 @@ export default function DashboardScreen() {
 
           <View style={styles.goalCard}>
             <View style={styles.goalHeader}>
-              <Text style={styles.goalIcon}>✅</Text>
+              <Text style={styles.goalIcon}>📈</Text>
               <Text style={styles.goalTitle}>Blended ROAS</Text>
             </View>
             <Text style={styles.goalAmount}>
