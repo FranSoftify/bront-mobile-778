@@ -16,7 +16,7 @@ import {
   User,
   Mail,
   Sparkles,
-  Zap,
+  Crown,
   MonitorSmartphone,
   HeadphonesIcon,
   Users,
@@ -145,9 +145,9 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                 onPress={() => handleOpenLink("https://bront.ai/")}
               >
                 <View style={styles.menuItemLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: subscriptionTier && subscriptionTier !== 'free' ? Colors.dark.success + "20" : "#9333EA" + "20" }]}>
+                  <View style={[styles.iconContainer, { backgroundColor: subscriptionTier && subscriptionTier !== 'free' ? "#F59E0B" + "20" : "#9333EA" + "20" }]}>
                     {subscriptionTier && subscriptionTier !== 'free' ? (
-                      <Zap size={18} color={Colors.dark.success} />
+                      <Crown size={18} color="#F59E0B" />
                     ) : (
                       <Sparkles size={18} color="#9333EA" />
                     )}
