@@ -184,7 +184,12 @@ export default function DashboardScreen() {
     >
       <Stack.Screen options={{ headerShown: false }} />
       
-      <Header title="Home" onMenuPress={() => setShowSettings(true)} />
+      <Header title="Home" onMenuPress={async () => {
+        if (Platform.OS !== "web") {
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+        setShowSettings(true);
+      }} />
 
       <SettingsModal visible={showSettings} onClose={() => setShowSettings(false)} />
 
