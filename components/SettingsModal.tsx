@@ -15,7 +15,7 @@ import {
   X,
   User,
   Mail,
-  Sparkles,
+  Zap,
   Crown,
   MonitorSmartphone,
   HeadphonesIcon,
@@ -149,7 +149,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                     {subscriptionTier && subscriptionTier !== 'free' && subscriptionTier !== 'Free' ? (
                       <Crown size={18} color="#F59E0B" />
                     ) : (
-                      <Sparkles size={18} color="#9333EA" />
+                      <Zap size={18} color="#9333EA" />
                     )}
                   </View>
                   <View>
