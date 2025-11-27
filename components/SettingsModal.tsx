@@ -15,7 +15,8 @@ import {
   X,
   User,
   Mail,
-  Crown,
+  Sparkles,
+  Rocket,
   MonitorSmartphone,
   HeadphonesIcon,
   Users,
@@ -144,12 +145,16 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                 onPress={() => handleOpenLink("https://bront.ai/")}
               >
                 <View style={styles.menuItemLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: Colors.dark.warning + "20" }]}>
-                    <Crown size={18} color={Colors.dark.warning} />
+                  <View style={[styles.iconContainer, { backgroundColor: subscriptionTier && subscriptionTier !== 'free' ? Colors.dark.success + "20" : Colors.dark.primary + "20" }]}>
+                    {subscriptionTier && subscriptionTier !== 'free' ? (
+                      <Rocket size={18} color={Colors.dark.success} />
+                    ) : (
+                      <Sparkles size={18} color={Colors.dark.primary} />
+                    )}
                   </View>
                   <View>
                     <Text style={styles.menuItemLabel}>Subscription Plan</Text>
-                    <Text style={styles.menuItemValue}>{subscriptionTier ? `${subscriptionTier.charAt(0).toUpperCase()}${subscriptionTier.slice(1)} Plan` : 'Free Plan'}</Text>
+                    <Text style={styles.menuItemValue}>{subscriptionTier && subscriptionTier !== 'free' ? `${subscriptionTier.charAt(0).toUpperCase()}${subscriptionTier.slice(1)} Plan` : 'Free Plan'}</Text>
                   </View>
                 </View>
                 <ExternalLink size={16} color={Colors.dark.textTertiary} />
