@@ -145,8 +145,8 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                 onPress={() => handleOpenLink("https://bront.ai/")}
               >
                 <View style={styles.menuItemLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: subscriptionTier && subscriptionTier !== 'free' ? "#F59E0B" + "20" : "#9333EA" + "20" }]}>
-                    {subscriptionTier && subscriptionTier !== 'free' ? (
+                  <View style={[styles.iconContainer, { backgroundColor: subscriptionTier && subscriptionTier !== 'free' && subscriptionTier !== 'Free' ? "#F59E0B" + "20" : "#9333EA" + "20" }]}>
+                    {subscriptionTier && subscriptionTier !== 'free' && subscriptionTier !== 'Free' ? (
                       <Crown size={18} color="#F59E0B" />
                     ) : (
                       <Sparkles size={18} color="#9333EA" />
@@ -154,7 +154,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                   </View>
                   <View>
                     <Text style={styles.menuItemLabel}>Subscription Plan</Text>
-                    <Text style={styles.menuItemValue}>{subscriptionTier && subscriptionTier !== 'free' ? `${subscriptionTier.charAt(0).toUpperCase()}${subscriptionTier.slice(1)} Plan` : 'Free Plan'}</Text>
+                    <Text style={styles.menuItemValue}>{subscriptionTier && subscriptionTier.toLowerCase() !== 'free' ? `${subscriptionTier.charAt(0).toUpperCase()}${subscriptionTier.slice(1)} Plan` : 'Free Plan'}</Text>
                   </View>
                 </View>
                 <ExternalLink size={16} color={Colors.dark.textTertiary} />
