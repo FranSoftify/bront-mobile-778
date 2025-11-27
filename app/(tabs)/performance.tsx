@@ -400,7 +400,12 @@ export default function PerformanceScreen() {
       end={{ x: 1, y: 1 }}
       style={styles.container}
     >
-      <Header title="Performance" onMenuPress={() => setShowSettings(true)} />
+      <Header title="Performance" onMenuPress={async () => {
+          if (Platform.OS !== "web") {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          setShowSettings(true);
+        }} />
 
       <SettingsModal visible={showSettings} onClose={() => setShowSettings(false)} />
 

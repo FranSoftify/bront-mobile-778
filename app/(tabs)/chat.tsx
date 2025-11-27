@@ -391,7 +391,12 @@ export default function ChatScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        <Header title="Bront AI" onMenuPress={() => setShowSettings(true)} />
+        <Header title="Bront AI" onMenuPress={async () => {
+          if (Platform.OS !== "web") {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }
+          setShowSettings(true);
+        }} />
 
         <SettingsModal visible={showSettings} onClose={() => setShowSettings(false)} />
 
