@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,13 +9,10 @@ import {
   Dimensions,
   Platform,
   Linking,
-  ActivityIndicator,
 } from "react-native";
-import { X, Zap, MessageCircle, BarChart3, Sparkles, Crown } from "lucide-react-native";
+import { X, MessageCircle, BarChart3, Sparkles, Crown, Zap } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
 
 interface UpgradeSheetProps {
   visible: boolean;
@@ -55,10 +52,8 @@ export default function UpgradeSheet({
   messagesUsed = 10,
   messageLimit = 10,
 }: UpgradeSheetProps) {
-  const slideAnim = useState(new Animated.Value(SCREEN_HEIGHT))[0];
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const [isLoading, setIsLoading] = useState(false);
-  const { session } = useAuth();
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
@@ -95,39 +90,13 @@ export default function UpgradeSheet({
     if (Platform.OS !== "web") {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    console.log("=== UPGRADE BUTTON PRESSED ===");
-
-    if (!session?.access_token) {
-      console.error("No auth session found");
-      return;
-    }
-
-    setIsLoading(true);
+    console.log("=== MANAGE PLAN BUTTON PRESSED ===");
 
     try {
-      const { data, error } = await supabase.functions.invoke("create-checkout", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (error) {
-        console.error("Error calling create-checkout:", error);
-        return;
-      }
-
-      console.log("Checkout response:", data);
-
-      if (data?.url) {
-        await Linking.openURL(data.url);
-        onClose();
-      } else {
-        console.error("No checkout URL returned");
-      }
+      await Linking.openURL("https://bront.ai/plans");
+      onClose();
     } catch (err) {
-      console.error("Failed to create checkout session:", err);
-    } finally {
-      setIsLoading(false);
+      console.error("Failed to open plans URL:", err);
     }
   };
 
@@ -177,7 +146,7 @@ export default function UpgradeSheet({
             <View style={styles.crownBadge}>
               <Crown size={28} color="#FFD700" strokeWidth={2} />
             </View>
-            <Text style={styles.title}>Unlock Bront Pro</Text>
+            <Text style={styles.title}>Out of Free Tokens</Text>
             <Text style={styles.subtitle}>
               You&apos;ve used {messagesUsed} of {messageLimit} free messages
             </Text>
@@ -214,19 +183,11 @@ export default function UpgradeSheet({
 
           <View style={styles.footer}>
             <TouchableOpacity
-              style={[styles.upgradeButton, isLoading && styles.upgradeButtonDisabled]}
+              style={styles.upgradeButton}
               onPress={handleUpgrade}
               activeOpacity={0.8}
-              disabled={isLoading}
             >
-              {isLoading ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Zap size={18} color="#FFFFFF" strokeWidth={2.5} />
-                  <Text style={styles.upgradeButtonText}>Upgrade to Pro</Text>
-                </>
-              )}
+              <Text style={styles.upgradeButtonText}>Manage your plan</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.laterButton}
