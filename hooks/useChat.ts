@@ -47,9 +47,9 @@ export function useChat() {
     try {
       console.log("=== FETCHING USER PLAN ===");
       const { data, error } = await supabase
-        .from("profiles")
-        .select("subscription_plan")
-        .eq("id", user.id)
+        .from("subscribers")
+        .select("subscription_tier")
+        .eq("user_id", user.id)
         .single();
       
       if (error) {
@@ -57,9 +57,10 @@ export function useChat() {
         return true;
       }
       
-      const plan = data?.subscription_plan || "free";
-      console.log("User plan:", plan);
-      return plan === "free";
+      const tier = data?.subscription_tier?.toLowerCase() || "free";
+      console.log("User subscription tier:", tier);
+      // If tier is anything other than 'free', user has a paid plan
+      return tier === "free";
     } catch (err) {
       console.log("Exception fetching user plan:", err);
       return true;
