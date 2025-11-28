@@ -349,14 +349,17 @@ export default function ChatScreen() {
   };
 
   const formatUserMessage = (content: string) => {
-    const mentionRegex = /(@[\w_-]+)/g;
+    // Match @mentions with underscores (campaign names have spaces replaced with underscores)
+    const mentionRegex = /(@[\w_]+(?:_[\w_]+)*)/g;
     const parts = content.split(mentionRegex).filter(Boolean);
     
     return parts.map((part, index) => {
-      if (/^@[\w_-]+$/.test(part)) {
+      if (/^@[\w_]+(?:_[\w_]+)*$/.test(part)) {
+        // Convert underscores back to spaces for display
+        const displayName = part.replace(/_/g, ' ');
         return (
           <Text key={index} style={styles.userMentionText}>
-            <Text style={styles.userMentionPill}>{part}</Text>
+            <Text style={styles.userMentionPill}>{displayName}</Text>
           </Text>
         );
       }
