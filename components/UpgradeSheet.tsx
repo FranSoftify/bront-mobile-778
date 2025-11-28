@@ -146,7 +146,7 @@ export default function UpgradeSheet({
             <View style={styles.crownBadge}>
               <Crown size={28} color="#FFD700" strokeWidth={2} />
             </View>
-            <Text style={styles.title}>Out of Free Tokens</Text>
+            <Text style={styles.title}>Out of Tokens</Text>
             <Text style={styles.subtitle}>
               You&apos;ve used {messagesUsed} of {messageLimit} free messages
             </Text>
@@ -187,7 +187,8 @@ export default function UpgradeSheet({
               onPress={handleUpgrade}
               activeOpacity={0.8}
             >
-              <Text style={styles.upgradeButtonText}>Manage your plan</Text>
+              <Zap size={18} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={styles.upgradeButtonText}>Get Bront Pro</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.laterButton}
