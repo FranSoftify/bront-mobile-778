@@ -349,54 +349,45 @@ export default function ChatScreen() {
   };
 
   const formatUserMessage = (content: string) => {
-    // Match @mentions - campaign names can have spaces, so match @ followed by text until we hit common message patterns
+    // Match @mentions - pattern matches @ followed by text until double space or end of string
+    // This matches the web behavior: @([^\s]+(?:\s+(?!\s)[^\s]+)*)
+    const mentionRegex = /@([^\s]+(?:\s+(?!\s)[^\s]+)*)/g;
+    
     let result: React.ReactNode[] = [];
-    let match;
     let keyIndex = 0;
+    let lastIndex = 0;
+    let match;
     
-    // Simple approach: find @mentions that start with @ and end before common action words
-    const simpleRegex = /@([A-Z][a-zA-Z0-9\s]+?)(?=\s+(?:analyze|pause|scale|increase|decrease|stop|start|run|check|show|get|what|how|why|is|are|can|should)|\s*\?|\s*$)/gi;
-    
-    let parts: { type: 'text' | 'mention', content: string, start: number, end: number }[] = [];
-    
-    while ((match = simpleRegex.exec(content)) !== null) {
-      parts.push({
-        type: 'mention',
-        content: '@' + match[1].trim(),
-        start: match.index,
-        end: match.index + match[0].length
-      });
-    }
-    
-    if (parts.length === 0) {
-      return [<Text key={0} style={styles.userText}>{content}</Text>];
-    }
-    
-    // Build result with text and mentions
-    let currentPos = 0;
-    parts.forEach((part, idx) => {
+    while ((match = mentionRegex.exec(content)) !== null) {
       // Add text before mention
-      if (part.start > currentPos) {
-        const textBefore = content.substring(currentPos, part.start);
+      if (match.index > lastIndex) {
+        const textBefore = content.substring(lastIndex, match.index);
         if (textBefore) {
           result.push(<Text key={`t-${keyIndex++}`} style={styles.userText}>{textBefore}</Text>);
         }
       }
+      
       // Add mention
+      const mentionText = '@' + match[1];
       result.push(
         <Text key={`m-${keyIndex++}`} style={styles.userMentionText}>
-          <Text style={styles.userMentionPill}>{part.content}</Text>
+          <Text style={styles.userMentionPill}>{mentionText}</Text>
         </Text>
       );
-      currentPos = part.end;
-    });
+      
+      lastIndex = match.index + match[0].length;
+    }
     
     // Add remaining text
-    if (currentPos < content.length) {
-      const remaining = content.substring(currentPos);
+    if (lastIndex < content.length) {
+      const remaining = content.substring(lastIndex);
       if (remaining) {
         result.push(<Text key={`t-${keyIndex++}`} style={styles.userText}>{remaining}</Text>);
       }
+    }
+    
+    if (result.length === 0) {
+      return [<Text key={0} style={styles.userText}>{content}</Text>];
     }
     
     return result;
