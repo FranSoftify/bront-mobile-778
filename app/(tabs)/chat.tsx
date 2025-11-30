@@ -170,19 +170,12 @@ export default function ChatScreen() {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    // Remove @mentions from input since they're already in chips
-    let cleanedInput = input.trim();
+    // Send the message exactly as typed, replacing underscores back to spaces for campaign names
+    let fullMessage = input.trim();
     mentionedCampaigns.forEach((campaign) => {
       const mentionPattern = `@${campaign.name.replace(/\s+/g, '_')}`;
-      cleanedInput = cleanedInput.replace(mentionPattern, '').trim();
+      fullMessage = fullMessage.replace(mentionPattern, `@${campaign.name}`);
     });
-    // Clean up any remaining double spaces
-    cleanedInput = cleanedInput.replace(/\s+/g, ' ').trim();
-
-    const mentionsText = mentionedCampaigns.map((c) => `@${c.name}`).join(" ");
-    const fullMessage = mentionsText
-      ? `${mentionsText} ${cleanedInput}`.trim()
-      : cleanedInput;
     
     const campaignToSend = mentionedCampaigns.length > 0 ? mentionedCampaigns[0] : null;
     
