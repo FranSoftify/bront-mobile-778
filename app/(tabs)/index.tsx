@@ -164,13 +164,15 @@ export default function DashboardScreen() {
     : 0;
 
   const daysLeftInMonth = 30 - new Date().getDate();
-  const revenueRemaining = currentPerformance
+  const revenueRemainingRaw = currentPerformance
     ? revenueGoal - currentPerformance.revenue
     : 0;
-  const dailyRevenueNeeded = revenueRemaining / (daysLeftInMonth || 1);
+  const revenueRemaining = Math.max(0, revenueRemainingRaw);
+  const dailyRevenueNeeded = revenueRemaining > 0 ? revenueRemaining / (daysLeftInMonth || 1) : 0;
 
-  const spendRemaining = spendGoal - (currentPerformance?.spend || 0);
-  const dailySpendNeeded = spendRemaining / (daysLeftInMonth || 1);
+  const spendRemainingRaw = spendGoal - (currentPerformance?.spend || 0);
+  const spendRemaining = Math.max(0, spendRemainingRaw);
+  const dailySpendNeeded = spendRemaining > 0 ? spendRemaining / (daysLeftInMonth || 1) : 0;
   const targetDailySpend = spendGoal / 30;
   // On budget if daily needed is achievable (within 1.5x of target) or if we're ahead/on pace
   const isSpendOnTrack = dailySpendNeeded <= targetDailySpend * 1.5 || spendRemaining <= 0;
