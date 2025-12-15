@@ -18,7 +18,16 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 
 export const getRedirectUrl = () => {
   if (Platform.OS === 'web') {
-    return typeof window !== 'undefined' ? window.location.origin : '';
+    // Use production URL for OAuth redirect
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      // If running on localhost, still redirect to production for OAuth
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return 'https://ffr8lq7qsn8c69245fv99.rork.app';
+      }
+      return origin;
+    }
+    return 'https://ffr8lq7qsn8c69245fv99.rork.app';
   }
   // Use the app's scheme for native OAuth callback
   return 'rork-app://auth/callback';
