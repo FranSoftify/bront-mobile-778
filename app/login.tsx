@@ -130,6 +130,44 @@ export default function LoginScreen() {
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>Sign in to your account</Text>
 
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={handleGoogleSignIn}
+            activeOpacity={0.8}
+          >
+            <View style={styles.googleIcon}>
+              <Text style={styles.googleIconText}>G</Text>
+            </View>
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          </TouchableOpacity>
+
+          {Platform.OS === 'ios' ? (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+              cornerRadius={12}
+              style={styles.appleButton}
+              onPress={handleAppleSignIn}
+            />
+          ) : (
+            <TouchableOpacity
+              style={styles.appleButtonFallback}
+              onPress={handleAppleSignIn}
+              activeOpacity={0.8}
+            >
+              <View style={styles.appleIcon}>
+                <Text style={styles.appleIconText}></Text>
+              </View>
+              <Text style={styles.appleButtonText}>Continue with Apple</Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
           <View style={styles.formSection}>
             <Text style={styles.label}>Email</Text>
             <TextInput
@@ -181,45 +219,6 @@ export default function LoginScreen() {
             )}
           </TouchableOpacity>
 
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>or</Text>
-            <View style={styles.dividerLine} />
-          </View>
-
-          <View style={styles.oauthRow}>
-            <TouchableOpacity
-              style={styles.googleButton}
-              onPress={handleGoogleSignIn}
-              activeOpacity={0.8}
-            >
-              <View style={styles.googleIcon}>
-                <Text style={styles.googleIconText}>G</Text>
-              </View>
-              <Text style={styles.googleButtonText}>Google</Text>
-            </TouchableOpacity>
-
-            {Platform.OS === 'ios' ? (
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
-                cornerRadius={12}
-                style={styles.appleButton}
-                onPress={handleAppleSignIn}
-              />
-            ) : (
-              <TouchableOpacity
-                style={styles.appleButtonFallback}
-                onPress={handleAppleSignIn}
-                activeOpacity={0.8}
-              >
-                <View style={styles.appleIcon}>
-                  <Text style={styles.appleIconText}></Text>
-                </View>
-                <Text style={styles.appleButtonText}>Apple</Text>
-              </TouchableOpacity>
-            )}
-          </View>
 
         </View>
       </ScrollView>
@@ -267,22 +266,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 32,
   },
-  oauthRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
   googleButton: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Colors.dark.surfaceLight,
     borderRadius: 12,
     paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    gap: 8,
+    gap: 12,
   },
   googleIcon: {
     width: 20,
@@ -303,19 +297,19 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
   },
   appleButton: {
-    flex: 1,
     height: 54,
+    marginTop: 12,
   },
   appleButtonFallback: {
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#000000",
+    backgroundColor: Colors.dark.text,
     borderRadius: 12,
     paddingVertical: 16,
-    paddingHorizontal: 16,
-    gap: 8,
+    paddingHorizontal: 20,
+    marginTop: 12,
+    gap: 12,
   },
   appleIcon: {
     width: 20,
@@ -325,12 +319,12 @@ const styles = StyleSheet.create({
   },
   appleIconText: {
     fontSize: 18,
-    color: "#FFFFFF",
+    color: Colors.dark.background,
   },
   appleButtonText: {
     fontSize: 16,
     fontWeight: "600" as const,
-    color: "#FFFFFF",
+    color: Colors.dark.background,
   },
   divider: {
     flexDirection: "row",
