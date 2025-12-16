@@ -1,8 +1,9 @@
 import createContextHook from '@nkzw/create-context-hook';
-import { supabase, getRedirectUrl } from '@/lib/supabase';
+import { supabase, supabaseAdmin, getRedirectUrl } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import type { User, Session } from '@supabase/supabase-js';
 
 export const [AuthProvider, useAuth] = createContextHook(() => {
@@ -95,6 +96,41 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
   };
 
+  const checkIfNewUser = async (userId: string, createdAt: string): Promise<boolean> => {
+    const createdTime = new Date(createdAt).getTime();
+    const now = Date.now();
+    const fiveSecondsAgo = now - 5000;
+    
+    if (createdTime > fiveSecondsAgo) {
+      console.log('User appears to be newly created (within last 5 seconds)');
+      return true;
+    }
+    return false;
+  };
+
+  const handleNewUserDenied = async (userId: string) => {
+    console.log('New user denied - signing out and deleting account');
+    
+    try {
+      await supabase.auth.signOut();
+      await supabaseAdmin.auth.admin.deleteUser(userId);
+    } catch (deleteError) {
+      console.error('Error deleting new user:', deleteError);
+    }
+    
+    setSession(null);
+    setUser(null);
+    
+    const errorMessage = 'Account creation is not allowed. Please contact support if you need access.';
+    if (Platform.OS === 'web') {
+      alert(errorMessage);
+    } else {
+      Alert.alert('Access Denied', errorMessage);
+    }
+    
+    throw new Error('NEW_USER_NOT_ALLOWED');
+  };
+
   const signInWithGoogle = async () => {
     const redirectUrl = getRedirectUrl();
     console.log('Google OAuth redirect URL:', redirectUrl);
@@ -129,12 +165,110 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
 
           if (sessionError) throw sessionError;
+          
+          if (sessionData.user) {
+            const isNew = await checkIfNewUser(sessionData.user.id, sessionData.user.created_at);
+            if (isNew) {
+              await handleNewUserDenied(sessionData.user.id);
+              return null;
+            }
+          }
+          
           return sessionData;
         }
       }
     }
 
     return data;
+  };
+
+  const signInWithApple = async () => {
+    if (Platform.OS === 'ios') {
+      try {
+        const credential = await AppleAuthentication.signInAsync({
+          requestedScopes: [
+            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          ],
+        });
+
+        console.log('Apple credential:', credential);
+
+        if (credential.identityToken) {
+          const { data, error } = await supabase.auth.signInWithIdToken({
+            provider: 'apple',
+            token: credential.identityToken,
+          });
+
+          if (error) throw error;
+          
+          if (data.user) {
+            const isNew = await checkIfNewUser(data.user.id, data.user.created_at);
+            if (isNew) {
+              await handleNewUserDenied(data.user.id);
+              return null;
+            }
+          }
+
+          return data;
+        }
+      } catch (e: unknown) {
+        const error = e as { code?: string; message?: string };
+        if (error.code === 'ERR_REQUEST_CANCELED') {
+          console.log('User canceled Apple Sign In');
+          return null;
+        }
+        throw e;
+      }
+    } else {
+      const redirectUrl = getRedirectUrl();
+      console.log('Apple OAuth redirect URL:', redirectUrl);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: Platform.OS !== 'web',
+        },
+      });
+
+      if (error) throw error;
+
+      if (Platform.OS !== 'web' && data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectUrl
+        );
+
+        if (result.type === 'success' && result.url) {
+          const url = new URL(result.url);
+          const params = new URLSearchParams(url.hash.substring(1));
+          const accessToken = params.get('access_token');
+          const refreshToken = params.get('refresh_token');
+
+          if (accessToken && refreshToken) {
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (sessionError) throw sessionError;
+            
+            if (sessionData.user) {
+              const isNew = await checkIfNewUser(sessionData.user.id, sessionData.user.created_at);
+              if (isNew) {
+                await handleNewUserDenied(sessionData.user.id);
+                return null;
+              }
+            }
+            
+            return sessionData;
+          }
+        }
+      }
+
+      return data;
+    }
   };
 
   return {
@@ -145,5 +279,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     signUpWithEmail,
     signOut,
     signInWithGoogle,
+    signInWithApple,
   };
 });

@@ -17,9 +17,10 @@ import { Eye, EyeOff } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/contexts/AuthContext";
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 export default function LoginScreen() {
-  const { signInWithEmail, signInWithGoogle } = useAuth();
+  const { signInWithEmail, signInWithGoogle, signInWithApple } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -39,6 +40,30 @@ export default function LoginScreen() {
         alert('Failed to sign in with Google. Please try again.');
       } else {
         Alert.alert('Error', 'Failed to sign in with Google. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    if (Platform.OS !== "web") {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    try {
+      setIsLoading(true);
+      await signInWithApple();
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      if (err.message === 'NEW_USER_NOT_ALLOWED') {
+        return;
+      }
+      console.error('Apple sign in error:', error);
+      if (Platform.OS === 'web') {
+        alert('Failed to sign in with Apple. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to sign in with Apple. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -115,6 +140,27 @@ export default function LoginScreen() {
             </View>
             <Text style={styles.googleButtonText}>Continue with Google</Text>
           </TouchableOpacity>
+
+          {Platform.OS === 'ios' ? (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+              cornerRadius={12}
+              style={styles.appleButton}
+              onPress={handleAppleSignIn}
+            />
+          ) : (
+            <TouchableOpacity
+              style={styles.appleButtonFallback}
+              onPress={handleAppleSignIn}
+              activeOpacity={0.8}
+            >
+              <View style={styles.appleIcon}>
+                <Text style={styles.appleIconText}></Text>
+              </View>
+              <Text style={styles.appleButtonText}>Continue with Apple</Text>
+            </TouchableOpacity>
+          )}
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
@@ -249,6 +295,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600" as const,
     color: Colors.dark.text,
+  },
+  appleButton: {
+    height: 54,
+    marginTop: 12,
+  },
+  appleButtonFallback: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.dark.text,
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginTop: 12,
+    gap: 12,
+  },
+  appleIcon: {
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  appleIconText: {
+    fontSize: 18,
+    color: Colors.dark.background,
+  },
+  appleButtonText: {
+    fontSize: 16,
+    fontWeight: "600" as const,
+    color: Colors.dark.background,
   },
   divider: {
     flexDirection: "row",
