@@ -23,6 +23,7 @@ import {
   Shield,
   ExternalLink,
   LogOut,
+  Trash2,
   ChevronDown,
   Check,
 } from "lucide-react-native";
@@ -156,6 +157,21 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                     <Text style={styles.menuItemLabel}>Subscription Plan</Text>
                     <Text style={styles.menuItemValue}>{subscriptionTier && subscriptionTier.toLowerCase() !== 'free' ? `${subscriptionTier.charAt(0).toUpperCase()}${subscriptionTier.slice(1)} Plan` : 'Free Plan'}</Text>
                   </View>
+                </View>
+                <ExternalLink size={16} color={Colors.dark.textTertiary} />
+              </TouchableOpacity>
+
+              <View style={styles.divider} />
+
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => handleOpenLink("https://bront.ai/data-deletion")}
+              >
+                <View style={styles.menuItemLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: Colors.dark.danger + "20" }]}>
+                    <Trash2 size={18} color={Colors.dark.danger} />
+                  </View>
+                  <Text style={styles.menuItemText}>Data Deletion</Text>
                 </View>
                 <ExternalLink size={16} color={Colors.dark.textTertiary} />
               </TouchableOpacity>
