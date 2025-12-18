@@ -357,7 +357,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                             Bront View
                           </Text>
                           <Text style={styles.dropdownItemSubtext}>
-                            Enhanced analytics view
+                            Shopify orders as truth source
                           </Text>
                         </View>
                       </View>
@@ -391,7 +391,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                             Meta View
                           </Text>
                           <Text style={styles.dropdownItemSubtext}>
-                            Standard Meta metrics
+                            Meta reported conversions
                           </Text>
                         </View>
                       </View>

@@ -22,6 +22,11 @@ interface DaySnapshot {
   roas: number;
 }
 
+interface ShopifyDayData {
+  grossVolume: number;
+  orders: number;
+}
+
 export type AdAccountFilter = "all" | string;
 export type PerformanceView = "bront" | "meta";
 
@@ -99,7 +104,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   };
 
   const selectedAdAccountsQuery = useQuery({
-    queryKey: ["selectedAdAccounts", user?.id],
+    queryKey: ["selectedAdAccounts", user?.id, user],
     queryFn: async (): Promise<SelectedAdAccount[]> => {
       if (!user) return [];
       
@@ -134,7 +139,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   console.log('=== ACTIVE FILTER ===', adAccountFilter);
 
   const profileQuery = useQuery({
-    queryKey: ["profile", user?.id],
+    queryKey: ["profile", user?.id, user],
     queryFn: async (): Promise<Profile | null> => {
       if (!user) return null;
       
@@ -162,7 +167,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   });
 
   const subscriptionQuery = useQuery({
-    queryKey: ["subscription", user?.id],
+    queryKey: ["subscription", user?.id, user],
     queryFn: async (): Promise<string | null> => {
       if (!user) return null;
       
@@ -188,7 +193,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   });
 
   const monthlyGoalQuery = useQuery({
-    queryKey: ["monthlyGoal", user?.id],
+    queryKey: ["monthlyGoal", user?.id, user],
     queryFn: async (): Promise<MonthlyGoal | null> => {
       if (!user) return null;
       
@@ -219,7 +224,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   });
 
   const productInfoQuery = useQuery({
-    queryKey: ["productInfo", user?.id],
+    queryKey: ["productInfo", user?.id, user],
     queryFn: async (): Promise<{ breakeven_roas: number } | null> => {
       if (!user) return null;
       
@@ -244,8 +249,73 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
     enabled: !!user,
   });
 
+  const shopifyOrdersQuery = useQuery({
+    queryKey: ["shopifyOrders", user?.id, user],
+    queryFn: async (): Promise<{ yesterday: ShopifyDayData; today: ShopifyDayData }> => {
+      if (!user) {
+        return {
+          yesterday: { grossVolume: 0, orders: 0 },
+          today: { grossVolume: 0, orders: 0 },
+        };
+      }
+
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      console.log('=== FETCHING SHOPIFY ORDERS ===');
+      console.log('Today:', todayStr, 'Yesterday:', yesterdayStr);
+
+      const fetchShopifyDayData = async (dateStr: string): Promise<ShopifyDayData> => {
+        try {
+          const startOfDay = `${dateStr}T00:00:00.000Z`;
+          const endOfDay = `${dateStr}T23:59:59.999Z`;
+
+          const { data, error } = await supabase
+            .from('shopify_orders')
+            .select('total_price, id')
+            .eq('user_id', user.id)
+            .gte('created_at', startOfDay)
+            .lte('created_at', endOfDay);
+
+          if (error) {
+            console.log(`Shopify orders error for ${dateStr}:`, error.message);
+            return { grossVolume: 0, orders: 0 };
+          }
+
+          const totalRevenue = data?.reduce((sum, order) => sum + Number(order.total_price || 0), 0) || 0;
+          const orderCount = data?.length || 0;
+
+          console.log(`Shopify ${dateStr}: orders=${orderCount}, revenue=${totalRevenue}`);
+
+          return {
+            grossVolume: totalRevenue,
+            orders: orderCount,
+          };
+        } catch (err) {
+          console.log(`Shopify orders exception for ${dateStr}:`, err);
+          return { grossVolume: 0, orders: 0 };
+        }
+      };
+
+      const [yesterdayData, todayData] = await Promise.all([
+        fetchShopifyDayData(yesterdayStr),
+        fetchShopifyDayData(todayStr),
+      ]);
+
+      console.log('=== SHOPIFY ORDERS RESULT ===');
+      console.log('Yesterday:', yesterdayData);
+      console.log('Today:', todayData);
+
+      return { yesterday: yesterdayData, today: todayData };
+    },
+    enabled: !!user,
+  });
+
   const daySnapshotQuery = useQuery({
-    queryKey: ["daySnapshots", user?.id, adAccountIds],
+    queryKey: ["daySnapshots", user?.id, user, adAccountIds],
     queryFn: async (): Promise<{ yesterday: DaySnapshot; today: DaySnapshot }> => {
       if (!user || adAccountIds.length === 0) {
         return {
@@ -260,7 +330,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
       yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split('T')[0];
 
-      console.log('=== FETCHING DAY SNAPSHOTS ===');
+      console.log('=== FETCHING DAY SNAPSHOTS (META) ===');
       console.log('Today:', todayStr, 'Yesterday:', yesterdayStr);
       console.log('Ad account IDs:', adAccountIds);
 
@@ -346,7 +416,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         fetchDayData(todayStr),
       ]);
 
-      console.log('=== FINAL SNAPSHOTS ===');
+      console.log('=== FINAL META SNAPSHOTS ===');
       console.log('Yesterday snapshot:', yesterdayData);
       console.log('Today snapshot:', todayData);
 
@@ -356,7 +426,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   });
 
   const currentPerformanceQuery = useQuery({
-    queryKey: ["currentPerformance", user?.id, adAccountIds],
+    queryKey: ["currentPerformance", user?.id, user, adAccountIds],
     queryFn: async () => {
       if (!user) return null;
       if (adAccountIds.length === 0) {
@@ -449,7 +519,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   const selectedCampaignId = selectedCampaign?.id || null;
   
   const dailyPerformanceQuery = useQuery({
-    queryKey: ["dailyPerformance", selectedTimeRange, user?.id, adAccountIds, selectedCampaignId],
+    queryKey: ["dailyPerformance", selectedTimeRange, user?.id, user, adAccountIds, selectedCampaignId],
     queryFn: async (): Promise<DailyPerformance[]> => {
       if (!user) return [];
       
@@ -575,7 +645,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   });
 
   const topCampaignsQuery = useQuery({
-    queryKey: ["topCampaigns", user?.id, adAccountIds, selectedTimeRange],
+    queryKey: ["topCampaigns", user?.id, user, adAccountIds, selectedTimeRange],
     queryFn: async (): Promise<TopCampaign[]> => {
       if (!user) return [];
       
@@ -773,7 +843,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   });
 
   const recommendationsQuery = useQuery({
-    queryKey: ["recommendations", user?.id, topCampaignsQuery.data],
+    queryKey: ["recommendations", user?.id, user, topCampaignsQuery.data],
     queryFn: async (): Promise<Recommendation[]> => {
       if (!user) return [];
       
@@ -819,7 +889,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   });
 
   const recentActivityQuery = useQuery({
-    queryKey: ["recentActivity", user?.id],
+    queryKey: ["recentActivity", user?.id, user],
     queryFn: async (): Promise<RecentActivity[]> => {
       if (!user) return [];
       
@@ -993,6 +1063,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         recommendationsQuery.refetch(),
         recentActivityQuery.refetch(),
         daySnapshotQuery.refetch(),
+        shopifyOrdersQuery.refetch(),
       ]);
       console.log('=== REFRESH DATA COMPLETED ===' );
     } catch (error) {
@@ -1073,8 +1144,20 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
       recommendations: recommendationsQuery.data || [],
       recentActivity: recentActivityQuery.data || [],
       selectedAdAccounts: selectedAdAccountsQuery.data || [],
-      yesterdaySnapshot: daySnapshotQuery.data?.yesterday || null,
-      todaySnapshot: daySnapshotQuery.data?.today || null,
+      yesterdaySnapshot: performanceView === 'bront' 
+        ? {
+            grossVolume: shopifyOrdersQuery.data?.yesterday?.grossVolume || 0,
+            orders: shopifyOrdersQuery.data?.yesterday?.orders || 0,
+            roas: daySnapshotQuery.data?.yesterday?.roas || 0,
+          }
+        : daySnapshotQuery.data?.yesterday || null,
+      todaySnapshot: performanceView === 'bront'
+        ? {
+            grossVolume: shopifyOrdersQuery.data?.today?.grossVolume || 0,
+            orders: shopifyOrdersQuery.data?.today?.orders || 0,
+            roas: daySnapshotQuery.data?.today?.roas || 0,
+          }
+        : daySnapshotQuery.data?.today || null,
       breakevenRoas: productInfoQuery.data?.breakeven_roas ?? 1,
       isLoading:
         selectedAdAccountsQuery.isLoading ||
