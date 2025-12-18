@@ -46,6 +46,11 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
     if (visible) {
       setConfirmationCode(generateConfirmationCode());
       setConfirmationInput("");
+      // Auto-focus the input after a short delay to allow modal animation
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 400);
+      return () => clearTimeout(timer);
     }
   }, [visible]);
   const isConfirmationValid = confirmationInput.toUpperCase().trim() === confirmationCode;
@@ -56,10 +61,6 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
     setConfirmationInput("");
     setError(null);
     onClose();
-  };
-
-  const handleInputPress = () => {
-    inputRef.current?.focus();
   };
 
   const handleDelete = async () => {
@@ -137,22 +138,20 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
               <View style={styles.codeContainer}>
                 <Text style={styles.confirmationCode}>{confirmationCode}</Text>
               </View>
-              <TouchableOpacity activeOpacity={1} onPress={handleInputPress}>
-                <TextInput
-                  ref={inputRef}
-                  style={[
-                    styles.input,
-                    confirmationInput.length > 0 && (isConfirmationValid ? styles.inputValid : styles.inputInvalid),
-                  ]}
-                  placeholder="Enter the code above"
-                  placeholderTextColor={Colors.dark.textTertiary}
-                  value={confirmationInput}
-                  onChangeText={setConfirmationInput}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  editable={!isDeleting}
-                />
-              </TouchableOpacity>
+              <TextInput
+                ref={inputRef}
+                style={[
+                  styles.input,
+                  confirmationInput.length > 0 && (isConfirmationValid ? styles.inputValid : styles.inputInvalid),
+                ]}
+                placeholder="Enter the code above"
+                placeholderTextColor={Colors.dark.textTertiary}
+                value={confirmationInput}
+                onChangeText={setConfirmationInput}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                editable={!isDeleting}
+              />
             </View>
 
             {error && (
