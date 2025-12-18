@@ -41,6 +41,7 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
   const [showFarewell, setShowFarewell] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [confirmationCode, setConfirmationCode] = useState(() => generateConfirmationCode());
@@ -146,6 +147,7 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
       <KeyboardAvoidingView 
         style={styles.container} 
         behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <View style={[styles.innerContainer, { paddingTop: insets.top }]}>
           <View style={styles.header}>
@@ -160,9 +162,11 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
           </View>
 
           <ScrollView 
+            ref={scrollViewRef}
             style={styles.scrollView}
-            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 20 }]}
+            contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
             <View style={styles.warningSection}>
               <View style={styles.warningIconContainer}>
@@ -202,6 +206,11 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
                 autoCapitalize="characters"
                 autoCorrect={false}
                 editable={!isDeleting}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 100);
+                }}
               />
             </View>
 
