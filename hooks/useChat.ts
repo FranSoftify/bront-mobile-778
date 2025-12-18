@@ -9,10 +9,10 @@ import type {
   WebhookPayload,
   CampaignInsights,
   ProductInfo,
-  TimeframeInfo,
   WebhookAdSet,
   WebhookAd,
   AdMetrics,
+  FormattedCampaignForPayload,
 } from "@/types/chat";
 import {
   hasExecutableOperations,
@@ -1302,13 +1302,8 @@ export function useChat() {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
         const endDate = new Date();
-        
-        const timeframe: TimeframeInfo = {
-          selected_range: "last_7_days",
-          start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0],
-          days_count: days,
-        };
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
 
         const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const sentAt = new Date().toISOString();
@@ -1323,6 +1318,95 @@ export function useChat() {
         if (targetCampaign) {
           campaignDetails = await fetchCampaignDetails(targetCampaign.id, days, useShopifyData);
         }
+
+        let formattedCampaign: FormattedCampaignForPayload | undefined;
+        if (targetCampaign && campaignDetails) {
+          const campaignInsights = buildCampaignInsights(targetCampaign, useShopifyData);
+          const totalSpend = campaignInsights.spend;
+          const dailySpend = totalSpend / days;
+          const dateRangeLabel = `last_7_days (${startDateStr} to ${endDateStr})`;
+
+          const formatCurrency = (value: number): string => `${value.toFixed(2)}`;
+          const formatPercent = (value: number): string => `${value.toFixed(2)}%`;
+
+          formattedCampaign = {
+            name: targetCampaign.name,
+            id: targetCampaign.id,
+            type: campaignDetails.campaign_type || "CBO",
+            status: targetCampaign.status,
+            objective: campaignDetails.objective || "OUTCOME_SALES",
+            date_range: dateRangeLabel,
+            spend_metrics: {
+              total_spend: formatCurrency(totalSpend),
+              daily_spend: formatCurrency(dailySpend),
+            },
+            performance_metrics: {
+              impressions: campaignInsights.impressions || 0,
+              clicks: campaignInsights.clicks || 0,
+              ctr: formatPercent(campaignInsights.ctr || 0),
+              cpc: formatCurrency(campaignInsights.cpc || 0),
+              cpm: formatCurrency(campaignInsights.cpm || 0),
+            },
+            conversion_metrics: {
+              purchases: campaignInsights.purchases || 0,
+              revenue: formatCurrency(campaignInsights.revenue),
+              roas: campaignInsights.roas,
+              cost_per_purchase: formatCurrency(campaignInsights.cost_per_purchase || 0),
+              avg_order_value: formatCurrency(campaignInsights.average_order_value || 0),
+              add_to_carts: 0,
+              checkouts: 0,
+            },
+            ad_sets: (campaignDetails.ad_sets || []).map((adSet) => {
+              const adSetDailyBudget = adSet.budget.daily > 0 ? adSet.budget.daily : adSet.budget.lifetime;
+              return {
+                name: adSet.name,
+                id: adSet.id,
+                status: adSet.status,
+                daily_budget: formatCurrency(adSetDailyBudget),
+                spend: formatCurrency(adSet.metrics.spend),
+                performance: {
+                  impressions: adSet.metrics.impressions,
+                  clicks: adSet.metrics.clicks,
+                  ctr: formatPercent(adSet.metrics.ctr),
+                  cpc: formatCurrency(adSet.metrics.cpc),
+                  cpm: formatCurrency(adSet.metrics.cpm),
+                },
+                conversions: {
+                  purchases: adSet.metrics.purchases,
+                  revenue: formatCurrency(adSet.metrics.revenue),
+                  roas: adSet.metrics.roas,
+                  cost_per_purchase: formatCurrency(adSet.metrics.cost_per_purchase),
+                  avg_order_value: formatCurrency(adSet.metrics.average_order_value),
+                  add_to_carts: adSet.metrics.add_to_carts,
+                  checkouts: adSet.metrics.checkouts,
+                },
+                ads: adSet.ads.map((ad) => {
+                  const adResult: FormattedCampaignForPayload['ad_sets'][0]['ads'][0] = {
+                    name: ad.name,
+                    id: ad.id,
+                    status: ad.status,
+                    spend: formatCurrency(ad.metrics.spend),
+                    impressions: ad.metrics.impressions,
+                    clicks: ad.metrics.clicks,
+                    ctr: formatPercent(ad.metrics.ctr),
+                    cpm: formatCurrency(ad.metrics.cpm),
+                    purchases: ad.metrics.purchases,
+                    revenue: formatCurrency(ad.metrics.revenue),
+                  };
+                  if (ad.metrics.clicks > 0) {
+                    adResult.cpc = formatCurrency(ad.metrics.cpc);
+                  }
+                  if (ad.metrics.purchases > 0) {
+                    adResult.roas = ad.metrics.roas;
+                    adResult.cost_per_purchase = formatCurrency(ad.metrics.cost_per_purchase);
+                    adResult.avg_order_value = formatCurrency(ad.metrics.average_order_value);
+                  }
+                  return adResult;
+                }),
+              };
+            }),
+          };
+        }
         
         const payload: WebhookPayload = {
           action: targetCampaign ? "analyze_selected_campaign" : "general_query",
@@ -1332,7 +1416,7 @@ export function useChat() {
           executionMode: EXECUTION_MODE,
           user_id: user.id,
           target_campaign_id: targetCampaign?.id,
-          latest_implemented_change: latestChange || undefined,
+          latest_implemented_change: latestChange || null,
           latest_implemented_change_summary: latestChangeSummary,
           conversation_memory_row_id: null,
           product_info: productInfo || undefined,
@@ -1340,29 +1424,12 @@ export function useChat() {
           current_campaign_id: targetCampaign?.id,
           current_campaign_name: targetCampaign?.name,
           last_mentioned_campaign_id: targetCampaign?.id,
-          campaign_name: targetCampaign?.name,
-          campaign_id: targetCampaign?.id,
-          campaign_type: campaignDetails?.campaign_type,
+          campaign: formattedCampaign,
           data_source: dataSource,
-          shopify_attribution_active: useShopifyData,
-          currency: "USD",
-          timeframe,
-          status: targetCampaign?.status,
-          objective: campaignDetails?.objective,
-          budget: campaignDetails?.budget,
-          ad_sets: campaignDetails?.ad_sets,
           conversation_history: conversationHistory,
           request_id: requestId,
           sent_at: sentAt,
         };
-
-        if (targetCampaign) {
-          payload.campaignInsights = buildCampaignInsights(targetCampaign, useShopifyData);
-          
-          if (targetCampaign.spend > 0) {
-            payload.daily_spend = targetCampaign.spend / days;
-          }
-        }
 
         const webhookResult = await sendToWebhook(payload);
         

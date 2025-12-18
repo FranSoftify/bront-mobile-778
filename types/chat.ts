@@ -138,39 +138,92 @@ export interface TimeframeInfo {
   days_count: number;
 }
 
+export interface FormattedCampaignForPayload {
+  name: string;
+  id: string;
+  type: string;
+  status: string;
+  objective: string;
+  date_range: string;
+  spend_metrics: {
+    total_spend: string;
+    daily_spend: string;
+  };
+  performance_metrics: {
+    impressions: number;
+    clicks: number;
+    ctr: string;
+    cpc: string;
+    cpm: string;
+  };
+  conversion_metrics: {
+    purchases: number;
+    revenue: string;
+    roas: number | null;
+    cost_per_purchase: string;
+    avg_order_value: string;
+    add_to_carts: number;
+    checkouts: number;
+  };
+  ad_sets: {
+    name: string;
+    id: string;
+    status: string;
+    daily_budget: string;
+    spend: string;
+    performance: {
+      impressions: number;
+      clicks: number;
+      ctr: string;
+      cpc: string;
+      cpm: string;
+    };
+    conversions: {
+      purchases: number;
+      revenue: string;
+      roas: number | null;
+      cost_per_purchase: string;
+      avg_order_value: string;
+      add_to_carts: number;
+      checkouts: number;
+    };
+    ads: {
+      name: string;
+      id: string;
+      status: string;
+      spend: string;
+      impressions: number;
+      clicks: number;
+      ctr: string;
+      cpm: string;
+      purchases: number;
+      revenue: string;
+      cpc?: string;
+      roas?: number | null;
+      cost_per_purchase?: string;
+      avg_order_value?: string;
+    }[];
+  }[];
+}
+
 export interface WebhookPayload {
+  action: string;
   input_message: string;
+  timestamp: string;
+  webhookUrl: string;
+  executionMode: string;
   user_id: string;
   target_campaign_id?: string;
-  timestamp: string;
-  campaign_name?: string;
-  campaign_id?: string;
-  campaign_type?: string;
-  is_sample_data?: boolean;
-  campaignInsights?: CampaignInsights;
-  budget?: number;
-  daily_spend?: number;
-  currency?: string;
-  timeframe?: TimeframeInfo;
-  status?: string;
-  objective?: string;
-  product_info?: ProductInfo;
-  latest_implemented_change?: Record<string, unknown>;
+  latest_implemented_change?: Record<string, unknown> | null;
   latest_implemented_change_summary?: string | null;
-  has_shopify_connection?: boolean;
-  shopify_data_available?: boolean;
   conversation_memory_row_id?: string | null;
+  product_info?: ProductInfo;
+  images?: string[];
   current_campaign_id?: string;
   current_campaign_name?: string;
   last_mentioned_campaign_id?: string;
-  data_source?: "Facebook Pixel" | "Shopify";
-  shopify_attribution_active?: boolean;
-  ad_sets?: WebhookAdSet[];
-  action?: string;
-  webhookUrl?: string;
-  executionMode?: string;
-  triggered_from?: string;
-  images?: string[];
+  campaign?: FormattedCampaignForPayload;
+  data_source: "Facebook Pixel" | "Shopify";
   conversation_history?: {
     role: string;
     content: string;
@@ -178,8 +231,8 @@ export interface WebhookPayload {
     implemented: boolean;
     feedback: string | null;
   }[];
-  request_id?: string;
-  sent_at?: string;
+  request_id: string;
+  sent_at: string;
 }
 
 export interface DisplayMessage {
