@@ -27,11 +27,49 @@ import {
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useBrontData } from "@/contexts/BrontDataContext";
+import { useAuth } from "@/contexts/AuthContext";
 import Header from "@/components/Header";
 import SettingsModal from "@/components/SettingsModal";
 import MonthlyGoalsSheet from "@/components/MonthlyGoalsSheet";
 
+const ADJECTIVES = [
+  'Turquoise', 'Crimson', 'Golden', 'Azure', 'Emerald', 'Silver', 'Coral',
+  'Violet', 'Amber', 'Jade', 'Ruby', 'Cobalt', 'Scarlet', 'Indigo', 'Copper',
+  'Sapphire', 'Bronze', 'Ivory', 'Onyx', 'Pearl', 'Teal', 'Magenta', 'Cyan'
+];
+
+const NOUNS = [
+  'Apple', 'Bear', 'Cloud', 'Dragon', 'Eagle', 'Fox', 'Glacier', 'Hawk',
+  'Island', 'Jaguar', 'Knight', 'Lion', 'Mountain', 'Neptune', 'Orchid',
+  'Phoenix', 'Quartz', 'Raven', 'Storm', 'Tiger', 'Unicorn', 'Viper', 'Wolf'
+];
+
+const generateFunUsername = (seed: string): string => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  hash = Math.abs(hash);
+  
+  const adjIndex = hash % ADJECTIVES.length;
+  const nounIndex = Math.floor(hash / ADJECTIVES.length) % NOUNS.length;
+  const number = (hash % 99) + 1;
+  
+  return `${ADJECTIVES[adjIndex]}${NOUNS[nounIndex]}${number}`;
+};
+
+const isValidDisplayName = (name?: string | null): boolean => {
+  if (!name) return false;
+  if (name.includes('@')) return false;
+  if (name.includes('privaterelay')) return false;
+  if (/^[a-z0-9]{8,}$/i.test(name) && !/[aeiou]{2,}/i.test(name)) return false;
+  return true;
+};
+
 export default function DashboardScreen() {
+  const { user } = useAuth();
   const {
     profile,
     monthlyGoal,
@@ -121,9 +159,15 @@ export default function DashboardScreen() {
     return "Good evening";
   };
 
-  const getFirstName = (fullName?: string | null) => {
-    if (!fullName) return "User";
-    return fullName.split(" ")[0];
+  const getDisplayName = () => {
+    const fullName = profile?.full_name || profile?.name;
+    
+    if (isValidDisplayName(fullName)) {
+      return fullName!.split(" ")[0];
+    }
+    
+    const seed = user?.id || profile?.id || 'default';
+    return generateFunUsername(seed);
   };
 
   const formatCurrency = (value: number) => {
@@ -239,7 +283,7 @@ export default function DashboardScreen() {
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>
-              {getGreeting()}, {getFirstName(profile?.full_name || profile?.name)} 👋
+              {getGreeting()}, {getDisplayName()} 👋
             </Text>
             <Text style={styles.subtitle}>
               Here&apos;s what&apos;s happening with your campaigns today
