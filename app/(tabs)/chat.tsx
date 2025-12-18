@@ -639,7 +639,7 @@ export default function ChatScreen() {
               ))}
             </View>
           )}
-          <View style={styles.inputWrapper}>
+          <View style={[styles.inputWrapper, isSending && styles.inputWrapperSending]}>
             <TextInput
               ref={inputRef}
               style={styles.input}
@@ -656,14 +656,10 @@ export default function ChatScreen() {
               onPress={handleSend}
               disabled={(!input.trim() && mentionedCampaigns.length === 0) || isSending}
             >
-              {isSending ? (
-                <ActivityIndicator size="small" color={Colors.dark.textTertiary} />
-              ) : (
-                <Send
-                  size={20}
-                  color={(input.trim() || mentionedCampaigns.length > 0) ? Colors.dark.text : Colors.dark.textTertiary}
-                />
-              )}
+              <Send
+                size={20}
+                color={isSending ? Colors.dark.textTertiary : (input.trim() || mentionedCampaigns.length > 0) ? Colors.dark.text : Colors.dark.textTertiary}
+              />
             </TouchableOpacity>
           </View>
         </View>
@@ -994,6 +990,9 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: Colors.dark.border,
+  },
+  inputWrapperSending: {
+    opacity: 0.6,
   },
   input: {
     flex: 1,

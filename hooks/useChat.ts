@@ -21,6 +21,7 @@ const WEBHOOK_URL = "https://bront.app.n8n.cloud/webhook/f61bb3b3-cc54-49ac-8948
 const PAGE_SIZE = 200;
 const LAST_MENTIONED_CAMPAIGN_KEY = "bront_last_mentioned_campaign";
 const FREE_MESSAGE_LIMIT = 10;
+const EXECUTION_MODE = "production";
 
 export function useChat() {
   const { user } = useAuth();
@@ -386,13 +387,13 @@ export function useChat() {
     }
   }, [user]);
 
-  const fetchLatestImplementedChange = useCallback(async (): Promise<Record<string, unknown> | null> => {
-    if (!user) return null;
+  const fetchLatestImplementedChange = useCallback(async (): Promise<{ change: Record<string, unknown> | null; summary: string | null }> => {
+    if (!user) return { change: null, summary: null };
 
     try {
       const { data, error } = await supabase
         .from("conversation_memory")
-        .select("implemented_changes")
+        .select("implemented_changes, summary")
         .eq("user", user.id)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -400,18 +401,54 @@ export function useChat() {
 
       if (error) {
         console.log("No implemented changes found:", error.message);
-        return null;
+        return { change: null, summary: null };
       }
 
       const changes = data?.implemented_changes;
+      const summary = data?.summary || null;
       if (Array.isArray(changes) && changes.length > 0) {
-        return changes[changes.length - 1] as Record<string, unknown>;
+        return { change: changes[changes.length - 1] as Record<string, unknown>, summary };
       }
 
-      return null;
+      return { change: null, summary };
     } catch (err) {
       console.log("Error fetching implemented changes:", err);
-      return null;
+      return { change: null, summary: null };
+    }
+  }, [user]);
+
+  const fetchConversationHistory = useCallback(async (): Promise<{
+    role: string;
+    content: string;
+    timestamp: string;
+    implemented: boolean;
+    feedback: string | null;
+  }[]> => {
+    if (!user) return [];
+
+    try {
+      const { data, error } = await supabase
+        .from("chat_messages")
+        .select("role, content, created_at, implemented, feedback")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.log("Error fetching conversation history:", error.message);
+        return [];
+      }
+
+      return (data || []).reverse().map((msg) => ({
+        role: msg.role === "user" ? "user" : "assistant",
+        content: msg.content,
+        timestamp: msg.created_at,
+        implemented: msg.implemented || false,
+        feedback: msg.feedback || null,
+      }));
+    } catch (err) {
+      console.log("Error fetching conversation history:", err);
+      return [];
     }
   }, [user]);
 
@@ -841,10 +878,14 @@ export function useChat() {
         if (targetCampaign) {
           await setLastMentionedCampaign(targetCampaign.id);
         }
-        const [productInfo, latestChange] = await Promise.all([
+        const [productInfo, latestChangeResult, conversationHistory] = await Promise.all([
           fetchProductInfo(),
           fetchLatestImplementedChange(),
+          fetchConversationHistory(),
         ]);
+        
+        const latestChange = latestChangeResult.change;
+        const latestChangeSummary = latestChangeResult.summary;
 
         const hasShopifyConnection = selectedAdAccounts.some(
           (acc) => acc.platform === "shopify"
@@ -865,41 +906,43 @@ export function useChat() {
           days_count: days,
         };
 
+        const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const sentAt = new Date().toISOString();
+        
         const payload: WebhookPayload = {
+          action: targetCampaign ? "analyze_selected_campaign" : "general_query",
           input_message: content.trim(),
+          timestamp: sentAt,
+          webhookUrl: WEBHOOK_URL,
+          executionMode: EXECUTION_MODE,
           user_id: user.id,
-          timestamp: new Date().toISOString(),
-          has_shopify_connection: hasShopifyConnection,
-          shopify_data_available: hasShopifyConnection,
+          target_campaign_id: targetCampaign?.id,
+          latest_implemented_change: latestChange || undefined,
+          latest_implemented_change_summary: latestChangeSummary,
           conversation_memory_row_id: null,
-          currency: "USD",
-          timeframe,
-          is_sample_data: false,
+          product_info: productInfo || undefined,
+          images: [],
+          current_campaign_id: targetCampaign?.id,
+          current_campaign_name: targetCampaign?.name,
+          last_mentioned_campaign_id: targetCampaign?.id,
+          campaign_name: targetCampaign?.name,
+          campaign_id: targetCampaign?.id,
           data_source: dataSource,
           shopify_attribution_active: useShopifyData,
+          currency: "USD",
+          timeframe,
+          status: targetCampaign?.status,
+          conversation_history: conversationHistory,
+          request_id: requestId,
+          sent_at: sentAt,
         };
 
         if (targetCampaign) {
-          payload.target_campaign_id = targetCampaign.id;
-          payload.campaign_name = targetCampaign.name;
-          payload.campaign_id = targetCampaign.id;
-          payload.status = targetCampaign.status;
           payload.campaignInsights = buildCampaignInsights(targetCampaign, useShopifyData);
-          payload.current_campaign_name = targetCampaign.name;
-          payload.current_campaign_id = targetCampaign.id;
-          payload.last_mentioned_campaign_id = targetCampaign.id;
           
           if (targetCampaign.spend > 0) {
             payload.daily_spend = targetCampaign.spend / days;
           }
-        }
-
-        if (productInfo) {
-          payload.product_info = productInfo;
-        }
-
-        if (latestChange) {
-          payload.latest_implemented_change = latestChange;
         }
 
         const webhookResult = await sendToWebhook(payload);
@@ -987,6 +1030,7 @@ export function useChat() {
       setLastMentionedCampaign,
       fetchProductInfo,
       fetchLatestImplementedChange,
+      fetchConversationHistory,
       buildCampaignInsights,
       selectedAdAccounts,
       performanceView,
