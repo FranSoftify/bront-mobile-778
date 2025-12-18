@@ -187,9 +187,13 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
 
             <View style={styles.inputSection}>
               <Text style={styles.inputLabel}>Type this code to confirm deletion:</Text>
-              <View style={styles.codeContainer}>
+              <TouchableOpacity 
+                style={styles.codeContainer}
+                onPress={() => inputRef.current?.focus()}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.confirmationCode}>{confirmationCode}</Text>
-              </View>
+              </TouchableOpacity>
               <TextInput
                 ref={inputRef}
                 style={[

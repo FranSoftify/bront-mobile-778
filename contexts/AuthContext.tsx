@@ -115,11 +115,8 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
 
       console.log('User deleted successfully');
 
-      // Sign out and clear local state
-      await supabase.auth.signOut();
-      setSession(null);
-      setUser(null);
-
+      // Don't sign out here - let the farewell screen handle it
+      // This ensures the success screen is shown before logout
       return true;
     } catch (error) {
       console.error('Delete account error:', error);

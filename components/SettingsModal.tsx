@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -42,6 +42,32 @@ interface SettingsModalProps {
 
 const APP_VERSION = "1.0.0";
 
+const ADJECTIVES = [
+  'Turquoise', 'Golden', 'Silver', 'Crimson', 'Azure', 'Emerald', 'Violet', 'Coral',
+  'Sapphire', 'Ruby', 'Amber', 'Jade', 'Onyx', 'Pearl', 'Copper', 'Bronze',
+  'Scarlet', 'Indigo', 'Cobalt', 'Magenta', 'Teal', 'Maroon', 'Navy', 'Olive'
+];
+
+const NOUNS = [
+  'Apple', 'Phoenix', 'Dragon', 'Tiger', 'Eagle', 'Wolf', 'Bear', 'Lion',
+  'Falcon', 'Hawk', 'Raven', 'Owl', 'Fox', 'Deer', 'Panther', 'Jaguar',
+  'Dolphin', 'Whale', 'Shark', 'Orca', 'Swan', 'Crane', 'Heron', 'Finch'
+];
+
+const generateRandomName = (seed: string): string => {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  const positiveHash = Math.abs(hash);
+  const adjIndex = positiveHash % ADJECTIVES.length;
+  const nounIndex = (positiveHash >> 8) % NOUNS.length;
+  const number = (positiveHash % 99) + 1;
+  return `${ADJECTIVES[adjIndex]}${NOUNS[nounIndex]}${number}`;
+};
+
 export default function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
@@ -76,7 +102,12 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
     onClose();
   };
 
-  const userName = profile?.full_name || profile?.name || user?.email?.split("@")[0] || "User";
+  const userName = useMemo(() => {
+    if (profile?.full_name && !profile.full_name.includes('@')) return profile.full_name;
+    if (profile?.name && !profile.name.includes('@')) return profile.name;
+    const seed = user?.id || user?.email || 'default';
+    return generateRandomName(seed);
+  }, [profile?.full_name, profile?.name, user?.id, user?.email]);
   const userEmail = user?.email || "No email";
 
   return (
