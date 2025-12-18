@@ -10,9 +10,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   ScrollView,
+  Animated,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X, AlertTriangle, Trash2 } from "lucide-react-native";
+import { X, AlertTriangle, Trash2, Heart } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,11 +35,13 @@ const generateConfirmationCode = () => {
 
 export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSheetProps) {
   const insets = useSafeAreaInsets();
-  const { deleteAccount } = useAuth();
+  const { deleteAccount, signOut } = useAuth();
   const [confirmationInput, setConfirmationInput] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showFarewell, setShowFarewell] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const [confirmationCode, setConfirmationCode] = useState(() => generateConfirmationCode());
 
@@ -46,6 +49,7 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
     if (visible) {
       setConfirmationCode(generateConfirmationCode());
       setConfirmationInput("");
+      setShowFarewell(false);
       // Auto-focus the input after a short delay to allow modal animation
       const timer = setTimeout(() => {
         inputRef.current?.focus();
@@ -53,6 +57,27 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
       return () => clearTimeout(timer);
     }
   }, [visible]);
+
+  useEffect(() => {
+    if (showFarewell) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+
+      const timer = setTimeout(async () => {
+        console.log("Farewell complete, signing out...");
+        await signOut();
+        onClose();
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    } else {
+      fadeAnim.setValue(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFarewell]);
   const isConfirmationValid = confirmationInput.toUpperCase().trim() === confirmationCode;
   const canDelete = isConfirmationValid && !isDeleting;
 
@@ -76,18 +101,45 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
     try {
       console.log("Starting account deletion...");
       await deleteAccount();
-      console.log("Account deleted successfully");
-      handleClose();
+      console.log("Account deleted successfully, showing farewell screen");
+      setIsDeleting(false);
+      setShowFarewell(true);
     } catch (err: any) {
       console.error("Delete account error:", err);
       setError(err.message || "Failed to delete account. Please try again.");
       if (Platform.OS !== "web") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
-    } finally {
       setIsDeleting(false);
     }
   };
+
+  if (showFarewell) {
+    return (
+      <Modal
+        visible={visible}
+        animationType="fade"
+        presentationStyle="fullScreen"
+        onRequestClose={() => {}}
+      >
+        <View style={[styles.farewellContainer, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+          <Animated.View style={[styles.farewellContent, { opacity: fadeAnim }]}>
+            <View style={styles.farewellIconContainer}>
+              <Heart size={48} color={Colors.dark.textSecondary} />
+            </View>
+            <Text style={styles.farewellTitle}>We&apos;re sad to see you go</Text>
+            <Text style={styles.farewellSubtitle}>
+              Your account has been successfully deleted.{"\n"}Thank you for being part of our journey.
+            </Text>
+            <View style={styles.signingOutContainer}>
+              <ActivityIndicator size="small" color={Colors.dark.textSecondary} />
+              <Text style={styles.signingOutText}>Signing out...</Text>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -355,5 +407,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500" as const,
     color: Colors.dark.textSecondary,
+  },
+  farewellContainer: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  farewellContent: {
+    alignItems: "center",
+    maxWidth: 320,
+  },
+  farewellIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.dark.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  farewellTitle: {
+    fontSize: 24,
+    fontWeight: "700" as const,
+    color: Colors.dark.text,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  farewellSubtitle: {
+    fontSize: 16,
+    color: Colors.dark.textSecondary,
+    textAlign: "center",
+    lineHeight: 24,
+    marginBottom: 48,
+  },
+  signingOutContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  signingOutText: {
+    fontSize: 14,
+    color: Colors.dark.textTertiary,
   },
 });
