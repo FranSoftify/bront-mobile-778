@@ -177,7 +177,9 @@ export default function DashboardScreen() {
     ? currentPerformance.roas - roasGoal
     : 0;
 
-  const daysLeftInMonth = 30 - new Date().getDate();
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysLeftInMonth = daysInMonth - now.getDate();
   const revenueRemainingRaw = revenueGoal - displayRevenue;
   const revenueRemaining = Math.max(0, revenueRemainingRaw);
   const dailyRevenueNeeded = revenueRemaining > 0 ? revenueRemaining / (daysLeftInMonth || 1) : 0;
@@ -185,7 +187,7 @@ export default function DashboardScreen() {
   const spendRemainingRaw = spendGoal - (currentPerformance?.spend || 0);
   const spendRemaining = Math.max(0, spendRemainingRaw);
   const dailySpendNeeded = spendRemaining > 0 ? spendRemaining / (daysLeftInMonth || 1) : 0;
-  const targetDailySpend = spendGoal / 30;
+  const targetDailySpend = spendGoal / daysInMonth;
   // On budget if daily needed is achievable (within 1.5x of target) or if we're ahead/on pace
   const isSpendOnTrack = dailySpendNeeded <= targetDailySpend * 1.5 || spendRemaining <= 0;
 
