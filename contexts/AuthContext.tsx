@@ -232,14 +232,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           });
 
           if (error) throw error;
-          
-          if (data.user) {
-            const isNew = await checkIfNewUser(data.user.id, data.user.created_at);
-            if (isNew) {
-              await handleNewUserDenied(data.user.id);
-              return null;
-            }
-          }
 
           return data;
         }
@@ -284,15 +276,7 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
             });
 
             if (sessionError) throw sessionError;
-            
-            if (sessionData.user) {
-              const isNew = await checkIfNewUser(sessionData.user.id, sessionData.user.created_at);
-              if (isNew) {
-                await handleNewUserDenied(sessionData.user.id);
-                return null;
-              }
-            }
-            
+
             return sessionData;
           }
         }
