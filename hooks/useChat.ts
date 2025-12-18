@@ -536,16 +536,46 @@ export function useChat() {
       const objective = campaignData?.objective || "OUTCOME_SALES";
       const campaignType = campaignData?.buying_type === "AUCTION" ? "CBO" : (campaignData?.buying_type || "CBO");
 
-      const { data: adSetsData, error: adSetsError } = await supabase
+      let adSetsData: Record<string, unknown>[] = [];
+      
+      // Try fetching ad sets with facebook_campaign_id first
+      const { data: adSetsByFbCampaignId, error: adSetsError1 } = await supabase
         .from("facebook_ad_sets")
         .select("*")
         .eq("facebook_campaign_id", campaignId);
 
-      if (adSetsError) {
-        console.log("Error fetching ad sets:", adSetsError.message);
+      if (adSetsError1) {
+        console.log("Error fetching ad sets by facebook_campaign_id:", adSetsError1.message);
+      }
+      
+      if (adSetsByFbCampaignId && adSetsByFbCampaignId.length > 0) {
+        adSetsData = adSetsByFbCampaignId;
+      } else {
+        // Try with campaign_id column
+        const { data: adSetsByCampaignId, error: adSetsError2 } = await supabase
+          .from("facebook_ad_sets")
+          .select("*")
+          .eq("campaign_id", campaignId);
+        
+        if (adSetsError2) {
+          console.log("Error fetching ad sets by campaign_id:", adSetsError2.message);
+        }
+        
+        if (adSetsByCampaignId && adSetsByCampaignId.length > 0) {
+          adSetsData = adSetsByCampaignId;
+        }
+      }
+      
+      console.log("=== AD SETS DATA ===");
+      console.log("Ad sets count:", adSetsData.length);
+      if (adSetsData.length > 0) {
+        console.log("Sample ad set columns:", Object.keys(adSetsData[0]));
+        console.log("Sample ad set:", JSON.stringify(adSetsData[0], null, 2));
       }
 
-      const adSetIds = adSetsData?.map(as => as.facebook_ad_set_id || as.id) || [];
+      const adSetIds = (adSetsData || []).map(as => 
+        (as.facebook_ad_set_id || as.ad_set_id || as.id) as string
+      ).filter(Boolean);
 
       let adsData: Record<string, unknown>[] = [];
       if (adSetIds.length > 0) {
@@ -646,8 +676,12 @@ export function useChat() {
       };
 
       const adSets: WebhookAdSet[] = (adSetsData || []).map((adSet) => {
-        const adSetId = adSet.facebook_ad_set_id || adSet.id;
-        const adSetAds = adsData.filter(ad => (ad.facebook_ad_set_id || ad.ad_set_id) === adSetId);
+        // Try multiple ID fields to get the Facebook ad set ID
+        const adSetId = (adSet.facebook_ad_set_id || adSet.ad_set_id || adSet.id) as string;
+        const adSetAds = adsData.filter(ad => {
+          const adAdSetId = (ad.facebook_ad_set_id || ad.ad_set_id) as string;
+          return adAdSetId === adSetId || adAdSetId === adSet.facebook_ad_set_id || adAdSetId === adSet.id;
+        });
         
         let adSetMetrics = aggregateInsights(adSetInsights || [], adSetId, "facebook_ad_set_id");
         
@@ -682,9 +716,13 @@ export function useChat() {
           };
         });
 
+        const adSetName = (adSet.name || adSet.ad_set_name || adSet.adset_name || "Unknown Ad Set") as string;
+        
+        console.log(`Ad Set: ${adSetId} - ${adSetName} - Ads count: ${ads.length}`);
+        
         return {
           id: adSetId,
-          name: (adSet.name || adSet.ad_set_name || "Unknown Ad Set") as string,
+          name: adSetName,
           status: (adSet.status || "UNKNOWN") as string,
           optimization_goal: (adSet.optimization_goal || "OFFSITE_CONVERSIONS") as string,
           budget: {
@@ -1150,11 +1188,19 @@ export function useChat() {
         const latestChangeSummary = latestChangeResult.summary;
 
         const hasShopifyConnection = selectedAdAccounts.some(
-          (acc) => acc.platform === "shopify"
+          (acc) => acc.platform?.toLowerCase() === "shopify"
         );
         
-        const useShopifyData = performanceView === "bront" && hasShopifyConnection;
+        // When performanceView is "bront", use Shopify attribution data
+        // The bront view is specifically for Shopify-attributed data
+        const useShopifyData = performanceView === "bront";
         const dataSource = useShopifyData ? "shopify" : "meta";
+        
+        console.log("=== WEBHOOK DATA SOURCE CONFIG ===");
+        console.log("Performance view:", performanceView);
+        console.log("Has Shopify connection:", hasShopifyConnection);
+        console.log("Use Shopify data:", useShopifyData);
+        console.log("Data source:", dataSource);
 
         const days = 7;
         const startDate = new Date();
