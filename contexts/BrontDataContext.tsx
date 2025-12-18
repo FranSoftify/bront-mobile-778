@@ -259,21 +259,29 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      // Use UTC date strings (YYYY-MM-DD) for consistent database queries
-      const getUTCDateString = (date: Date) => {
-        return date.toISOString().split('T')[0];
+      // Use user's local timezone for date calculations
+      const getLocalDateString = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
       };
 
+      // Get timezone offset in minutes and convert to hours for logging
+      const timezoneOffset = new Date().getTimezoneOffset();
+      const timezoneHours = -timezoneOffset / 60;
+
       const now = new Date();
-      const todayStr = getUTCDateString(now);
+      const todayStr = getLocalDateString(now);
       
       const yesterdayDate = new Date(now);
-      yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
-      const yesterdayStr = getUTCDateString(yesterdayDate);
+      yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+      const yesterdayStr = getLocalDateString(yesterdayDate);
 
-      console.log('=== FETCHING SHOPIFY ORDERS ===');
-      console.log('Today (UTC):', todayStr);
-      console.log('Yesterday (UTC):', yesterdayStr);
+      console.log('=== FETCHING SHOPIFY ORDERS (BRONT ONLY) ===');
+      console.log('User timezone offset (hours):', timezoneHours);
+      console.log('Today (local):', todayStr);
+      console.log('Yesterday (local):', yesterdayStr);
 
       const fetchShopifyDayData = async (dateStr: string): Promise<ShopifyDayData> => {
         try {
@@ -282,10 +290,12 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
           const startOfDay = `${dateStr}T00:00:00`;
           const endOfDay = `${dateStr}T23:59:59.999`;
           
+          // Only fetch orders with utm_source = 'bront' for Bront view
           const { data, error } = await supabase
             .from('shopify_orders')
-            .select('total_price, id, created_at')
+            .select('total_price, id, created_at, utm_source')
             .eq('user_id', user.id)
+            .eq('utm_source', 'bront')
             .gte('created_at', startOfDay)
             .lte('created_at', endOfDay);
 
@@ -297,7 +307,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
           const totalRevenue = data?.reduce((sum, order) => sum + Number(order.total_price || 0), 0) || 0;
           const orderCount = data?.length || 0;
 
-          console.log(`Shopify ${dateStr}: orders=${orderCount}, revenue=${totalRevenue}, raw data:`, data);
+          console.log(`Shopify ${dateStr}: orders=${orderCount}, revenue=${totalRevenue}, utm_source=bront, raw data:`, data);
 
           return {
             grossVolume: totalRevenue,
@@ -314,7 +324,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         fetchShopifyDayData(todayStr),
       ]);
 
-      console.log('=== SHOPIFY ORDERS RESULT ===');
+      console.log('=== SHOPIFY ORDERS RESULT (BRONT ONLY) ===');
       console.log('Yesterday:', yesterdayStr, yesterdayData);
       console.log('Today:', todayStr, todayData);
 
