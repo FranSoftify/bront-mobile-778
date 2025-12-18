@@ -142,9 +142,8 @@ export const formatCampaignPayload = (
   currency: string,
   useShopifyData: boolean
 ): FormattedCampaignPayload => {
-  const daysCount = timeframe.days_count || 7;
   const totalSpend = campaignInsights.spend;
-  const dailySpend = totalSpend / daysCount;
+  const dailyBudget = campaignDetails?.budget || 0;
 
   const dateRangeLabel = `${timeframe.selected_range} (${timeframe.start_date} to ${timeframe.end_date})`;
 
@@ -157,7 +156,7 @@ export const formatCampaignPayload = (
     date_range: dateRangeLabel,
     spend_metrics: {
       total_spend: formatCurrency(totalSpend, currency),
-      daily_spend: formatCurrency(dailySpend, currency),
+      daily_spend: formatCurrency(dailyBudget, currency),
     },
     performance_metrics: {
       impressions: campaignInsights.impressions || 0,
