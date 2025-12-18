@@ -35,6 +35,7 @@ interface BrontDataContextType {
   subscriptionTier: string | null | undefined;
   monthlyGoal: MonthlyGoal | null | undefined;
   currentPerformance: { spend: number; revenue: number; purchases: number; roas: number } | null | undefined;
+  brontMtdPerformance: { revenue: number; orders: number } | null | undefined;
   dailyPerformance: DailyPerformance[];
   topCampaigns: TopCampaign[];
   topCampaignsLoading: boolean;
@@ -329,6 +330,48 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
       console.log('Today:', todayStr, todayData);
 
       return { yesterday: yesterdayData, today: todayData };
+    },
+    enabled: !!user,
+  });
+
+  const brontMtdQuery = useQuery({
+    queryKey: ["brontMtdPerformance", user?.id, user],
+    queryFn: async (): Promise<{ revenue: number; orders: number }> => {
+      if (!user) {
+        return { revenue: 0, orders: 0 };
+      }
+
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfMonthStr = `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}-01T00:00:00`;
+
+      console.log('=== FETCHING BRONT MTD REVENUE ===');
+      console.log('Start of month:', startOfMonthStr);
+
+      try {
+        const { data, error } = await supabase
+          .from('shopify_orders')
+          .select('total_price, id, created_at, utm_source')
+          .eq('user_id', user.id)
+          .eq('utm_source', 'bront')
+          .gte('created_at', startOfMonthStr);
+
+        if (error) {
+          console.log('Bront MTD error:', error.message);
+          return { revenue: 0, orders: 0 };
+        }
+
+        const totalRevenue = data?.reduce((sum, order) => sum + Number(order.total_price || 0), 0) || 0;
+        const orderCount = data?.length || 0;
+
+        console.log('=== BRONT MTD RESULT ===');
+        console.log('Orders:', orderCount, 'Revenue:', totalRevenue);
+
+        return { revenue: totalRevenue, orders: orderCount };
+      } catch (err) {
+        console.log('Bront MTD exception:', err);
+        return { revenue: 0, orders: 0 };
+      }
     },
     enabled: !!user,
   });
@@ -1083,6 +1126,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         recentActivityQuery.refetch(),
         daySnapshotQuery.refetch(),
         shopifyOrdersQuery.refetch(),
+        brontMtdQuery.refetch(),
       ]);
       console.log('=== REFRESH DATA COMPLETED ===' );
     } catch (error) {
@@ -1157,6 +1201,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
       subscriptionTier: subscriptionQuery.data,
       monthlyGoal: monthlyGoalQuery.data,
       currentPerformance: currentPerformanceQuery.data,
+      brontMtdPerformance: brontMtdQuery.data,
       dailyPerformance: dailyPerformanceQuery.data || [],
       topCampaigns: topCampaignsQuery.data || [],
       topCampaignsLoading: topCampaignsQuery.isLoading || topCampaignsQuery.isFetching,

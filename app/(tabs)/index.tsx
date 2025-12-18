@@ -36,6 +36,8 @@ export default function DashboardScreen() {
     profile,
     monthlyGoal,
     currentPerformance,
+    brontMtdPerformance,
+    performanceView,
     recommendations,
     recentActivity,
     yesterdaySnapshot,
@@ -153,8 +155,12 @@ export default function DashboardScreen() {
   const spendGoal = monthlyGoal?.spend_goal ?? monthlyGoal?.ad_spend_target ?? 0;
   const roasGoal = monthlyGoal?.roas_goal ?? monthlyGoal?.blended_roas_target ?? 0;
 
-  const revenueProgress = currentPerformance && revenueGoal
-    ? (currentPerformance.revenue / revenueGoal) * 100
+  const displayRevenue = performanceView === 'bront' 
+    ? (brontMtdPerformance?.revenue || 0)
+    : (currentPerformance?.revenue || 0);
+
+  const revenueProgress = revenueGoal
+    ? (displayRevenue / revenueGoal) * 100
     : 0;
   const spendProgress = currentPerformance && spendGoal
     ? (currentPerformance.spend / spendGoal) * 100
@@ -164,9 +170,7 @@ export default function DashboardScreen() {
     : 0;
 
   const daysLeftInMonth = 30 - new Date().getDate();
-  const revenueRemainingRaw = currentPerformance
-    ? revenueGoal - currentPerformance.revenue
-    : 0;
+  const revenueRemainingRaw = revenueGoal - displayRevenue;
   const revenueRemaining = Math.max(0, revenueRemainingRaw);
   const dailyRevenueNeeded = revenueRemaining > 0 ? revenueRemaining / (daysLeftInMonth || 1) : 0;
 
@@ -320,7 +324,7 @@ export default function DashboardScreen() {
               <Text style={styles.goalTitle}>Revenue</Text>
             </View>
             <Text style={styles.goalAmount}>
-              {formatCurrency(currentPerformance?.revenue || 0)} /{" "}
+              {formatCurrency(displayRevenue)} /{" "}
               {formatCurrency(revenueGoal)}
             </Text>
             <View style={styles.progressBarContainer}>
