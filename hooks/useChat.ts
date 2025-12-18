@@ -532,7 +532,7 @@ export function useChat() {
         console.log("Error fetching campaign:", campaignError.message);
       }
 
-      const budget = Number(campaignData?.daily_budget || campaignData?.lifetime_budget || 0) / 100;
+      const budget = Number(campaignData?.daily_budget || campaignData?.lifetime_budget || 0);
       const objective = campaignData?.objective || "OUTCOME_SALES";
       
       const isABO = campaignData && 
@@ -660,20 +660,20 @@ export function useChat() {
             console.log("Attributed to campaign:", campaignId);
           }
           
-          // Ad set level attribution via utm_content (adset_id)
-          if (utmContent && adSetIds.map(id => String(id).trim()).includes(utmContent)) {
-            shopifyOrdersByAdSet[utmContent] = shopifyOrdersByAdSet[utmContent] || { revenue: 0, orders: 0 };
-            shopifyOrdersByAdSet[utmContent].revenue += price;
-            shopifyOrdersByAdSet[utmContent].orders += 1;
-            console.log("Attributed to ad set:", utmContent);
+          // Ad set level attribution via utm_term (adset_id)
+          if (utmTerm && adSetIds.map(id => String(id).trim()).includes(utmTerm)) {
+            shopifyOrdersByAdSet[utmTerm] = shopifyOrdersByAdSet[utmTerm] || { revenue: 0, orders: 0 };
+            shopifyOrdersByAdSet[utmTerm].revenue += price;
+            shopifyOrdersByAdSet[utmTerm].orders += 1;
+            console.log("Attributed to ad set:", utmTerm);
           }
           
-          // Ad level attribution via utm_term (ad_id)
-          if (utmTerm && adIds.map(id => String(id).trim()).includes(utmTerm)) {
-            shopifyOrdersByAd[utmTerm] = shopifyOrdersByAd[utmTerm] || { revenue: 0, orders: 0 };
-            shopifyOrdersByAd[utmTerm].revenue += price;
-            shopifyOrdersByAd[utmTerm].orders += 1;
-            console.log("Attributed to ad:", utmTerm);
+          // Ad level attribution via utm_content (ad_id)
+          if (utmContent && adIds.map(id => String(id).trim()).includes(utmContent)) {
+            shopifyOrdersByAd[utmContent] = shopifyOrdersByAd[utmContent] || { revenue: 0, orders: 0 };
+            shopifyOrdersByAd[utmContent].revenue += price;
+            shopifyOrdersByAd[utmContent].orders += 1;
+            console.log("Attributed to ad:", utmContent);
           }
         });
 
@@ -817,8 +817,8 @@ export function useChat() {
           status: (adSet.status || "UNKNOWN") as string,
           optimization_goal: (adSet.optimization_goal || "OFFSITE_CONVERSIONS") as string,
           budget: {
-            daily: Number(adSet.daily_budget || 0) / 100,
-            lifetime: Number(adSet.lifetime_budget || 0) / 100,
+            daily: Number(adSet.daily_budget || 0),
+            lifetime: Number(adSet.lifetime_budget || 0),
           },
           metrics: adSetMetrics,
           ads,
