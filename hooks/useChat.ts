@@ -10,6 +10,9 @@ import type {
   CampaignInsights,
   ProductInfo,
   TimeframeInfo,
+  WebhookAdSet,
+  WebhookAd,
+  AdMetrics,
 } from "@/types/chat";
 import {
   hasExecutableOperations,
@@ -449,6 +452,265 @@ export function useChat() {
     } catch (err) {
       console.log("Error fetching conversation history:", err);
       return [];
+    }
+  }, [user]);
+
+  const createEmptyMetrics = (): AdMetrics => ({
+    impressions: 0,
+    clicks: 0,
+    reach: 0,
+    spend: 0,
+    ctr: 0,
+    cpc: 0,
+    cpm: 0,
+    purchases: 0,
+    add_to_carts: 0,
+    checkouts: 0,
+    add_payment_info: 0,
+    landing_page_views: 0,
+    view_content: 0,
+    revenue: 0,
+    cart_value: 0,
+    checkout_value: 0,
+    content_value: 0,
+    roas: 0,
+    cost_per_purchase: 0,
+    cost_per_cart: 0,
+    cost_per_checkout: 0,
+    link_clicks: 0,
+    video_views: 0,
+    page_engagement: 0,
+    post_reactions: 0,
+    post_saves: 0,
+    funnel: {
+      impression_to_click_rate: 0,
+      click_to_landing_rate: 0,
+      landing_to_content_rate: 0,
+      content_to_cart_rate: 0,
+      cart_to_checkout_rate: 0,
+      checkout_to_payment_rate: 0,
+      payment_to_purchase_rate: 0,
+      overall_conversion_rate: 0,
+      cart_abandonment_rate: 0,
+      checkout_abandonment_rate: 0,
+    },
+    average_order_value: 0,
+    average_cart_value: 0,
+    video_engagement_rate: 0,
+  });
+
+  const fetchCampaignDetails = useCallback(async (
+    campaignId: string,
+    timeframeDays: number,
+    useShopifyData: boolean
+  ): Promise<{
+    budget: number;
+    objective: string;
+    campaign_type: string;
+    ad_sets: WebhookAdSet[];
+  } | null> => {
+    if (!user) return null;
+
+    console.log("=== FETCHING CAMPAIGN DETAILS ===");
+    console.log("Campaign ID:", campaignId);
+    console.log("Timeframe days:", timeframeDays);
+    console.log("Use Shopify data:", useShopifyData);
+
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - timeframeDays);
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = new Date().toISOString().split('T')[0];
+
+      const { data: campaignData, error: campaignError } = await supabase
+        .from("facebook_campaigns")
+        .select("*")
+        .eq("facebook_campaign_id", campaignId)
+        .single();
+
+      if (campaignError) {
+        console.log("Error fetching campaign:", campaignError.message);
+      }
+
+      const budget = Number(campaignData?.daily_budget || campaignData?.lifetime_budget || 0) / 100;
+      const objective = campaignData?.objective || "OUTCOME_SALES";
+      const campaignType = campaignData?.buying_type === "AUCTION" ? "CBO" : (campaignData?.buying_type || "CBO");
+
+      const { data: adSetsData, error: adSetsError } = await supabase
+        .from("facebook_ad_sets")
+        .select("*")
+        .eq("facebook_campaign_id", campaignId);
+
+      if (adSetsError) {
+        console.log("Error fetching ad sets:", adSetsError.message);
+      }
+
+      const adSetIds = adSetsData?.map(as => as.facebook_ad_set_id || as.id) || [];
+
+      let adsData: Record<string, unknown>[] = [];
+      if (adSetIds.length > 0) {
+        const { data: ads, error: adsError } = await supabase
+          .from("facebook_ads")
+          .select("*")
+          .in("facebook_ad_set_id", adSetIds);
+
+        if (adsError) {
+          console.log("Error fetching ads:", adsError.message);
+        }
+        adsData = ads || [];
+      }
+
+      const { data: adSetInsights } = await supabase
+        .from("facebook_ad_set_insights")
+        .select("*")
+        .in("facebook_ad_set_id", adSetIds)
+        .gte("date_start", startDateStr)
+        .lte("date_start", endDateStr);
+
+      const adIds = adsData.map(ad => ad.facebook_ad_id || ad.id) as string[];
+      let adInsights: Record<string, unknown>[] = [];
+      if (adIds.length > 0) {
+        const { data: insights } = await supabase
+          .from("facebook_ad_insights")
+          .select("*")
+          .in("facebook_ad_id", adIds)
+          .gte("date_start", startDateStr)
+          .lte("date_start", endDateStr);
+        adInsights = insights || [];
+      }
+
+      let shopifyOrdersByCampaign: Record<string, { revenue: number; orders: number }> = {};
+      let shopifyOrdersByAdSet: Record<string, { revenue: number; orders: number }> = {};
+      let shopifyOrdersByAd: Record<string, { revenue: number; orders: number }> = {};
+
+      if (useShopifyData) {
+        const { data: shopifyOrders } = await supabase
+          .from("shopify_orders")
+          .select("total_price, utm_campaign, utm_content, utm_term")
+          .eq("user_id", user.id)
+          .eq("utm_source", "bront")
+          .gte("created_at", `${startDateStr}T00:00:00`);
+
+        (shopifyOrders || []).forEach((order) => {
+          const price = Number(order.total_price || 0);
+          if (order.utm_campaign === campaignId) {
+            shopifyOrdersByCampaign[campaignId] = shopifyOrdersByCampaign[campaignId] || { revenue: 0, orders: 0 };
+            shopifyOrdersByCampaign[campaignId].revenue += price;
+            shopifyOrdersByCampaign[campaignId].orders += 1;
+          }
+          if (order.utm_content) {
+            shopifyOrdersByAdSet[order.utm_content] = shopifyOrdersByAdSet[order.utm_content] || { revenue: 0, orders: 0 };
+            shopifyOrdersByAdSet[order.utm_content].revenue += price;
+            shopifyOrdersByAdSet[order.utm_content].orders += 1;
+          }
+          if (order.utm_term) {
+            shopifyOrdersByAd[order.utm_term] = shopifyOrdersByAd[order.utm_term] || { revenue: 0, orders: 0 };
+            shopifyOrdersByAd[order.utm_term].revenue += price;
+            shopifyOrdersByAd[order.utm_term].orders += 1;
+          }
+        });
+      }
+
+      const aggregateInsights = (insights: Record<string, unknown>[], entityId: string, idField: string) => {
+        const relevant = insights.filter(i => i[idField] === entityId);
+        const metrics = createEmptyMetrics();
+        
+        relevant.forEach((insight) => {
+          metrics.impressions += Number(insight.impressions || 0);
+          metrics.clicks += Number(insight.clicks || 0);
+          metrics.reach += Number(insight.reach || 0);
+          metrics.spend += Number(insight.spend || 0);
+          
+          const actions = insight.actions as { action_type: string; value: string | number }[] | null;
+          const actionValues = insight.action_values as { action_type: string; value: string | number }[] | null;
+          
+          const purchases = actions?.find(a => a.action_type === "purchase");
+          const revenue = actionValues?.find(a => a.action_type === "purchase");
+          const addToCarts = actions?.find(a => a.action_type === "add_to_cart");
+          const checkouts = actions?.find(a => a.action_type === "initiate_checkout");
+          
+          metrics.purchases += purchases ? Number(purchases.value) : 0;
+          metrics.revenue += revenue ? Number(revenue.value) : 0;
+          metrics.add_to_carts += addToCarts ? Number(addToCarts.value) : 0;
+          metrics.checkouts += checkouts ? Number(checkouts.value) : 0;
+        });
+        
+        metrics.ctr = metrics.impressions > 0 ? (metrics.clicks / metrics.impressions) * 100 : 0;
+        metrics.cpc = metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0;
+        metrics.cpm = metrics.impressions > 0 ? (metrics.spend / metrics.impressions) * 1000 : 0;
+        metrics.roas = metrics.spend > 0 ? metrics.revenue / metrics.spend : (metrics.revenue > 0 ? null : 0);
+        metrics.cost_per_purchase = metrics.purchases > 0 ? metrics.spend / metrics.purchases : 0;
+        metrics.average_order_value = metrics.purchases > 0 ? metrics.revenue / metrics.purchases : 0;
+        
+        return metrics;
+      };
+
+      const adSets: WebhookAdSet[] = (adSetsData || []).map((adSet) => {
+        const adSetId = adSet.facebook_ad_set_id || adSet.id;
+        const adSetAds = adsData.filter(ad => (ad.facebook_ad_set_id || ad.ad_set_id) === adSetId);
+        
+        let adSetMetrics = aggregateInsights(adSetInsights || [], adSetId, "facebook_ad_set_id");
+        
+        if (useShopifyData && shopifyOrdersByAdSet[adSetId]) {
+          adSetMetrics.purchases = shopifyOrdersByAdSet[adSetId].orders;
+          adSetMetrics.revenue = shopifyOrdersByAdSet[adSetId].revenue;
+          adSetMetrics.roas = adSetMetrics.spend > 0 ? adSetMetrics.revenue / adSetMetrics.spend : (adSetMetrics.revenue > 0 ? null : 0);
+          adSetMetrics.cost_per_purchase = adSetMetrics.purchases > 0 ? adSetMetrics.spend / adSetMetrics.purchases : 0;
+          adSetMetrics.average_order_value = adSetMetrics.purchases > 0 ? adSetMetrics.revenue / adSetMetrics.purchases : 0;
+        }
+
+        const ads: WebhookAd[] = adSetAds.map((ad) => {
+          const adId = ad.facebook_ad_id || ad.id;
+          let adMetrics = aggregateInsights(adInsights, adId as string, "facebook_ad_id");
+          
+          if (useShopifyData && shopifyOrdersByAd[adId as string]) {
+            adMetrics.purchases = shopifyOrdersByAd[adId as string].orders;
+            adMetrics.revenue = shopifyOrdersByAd[adId as string].revenue;
+            adMetrics.roas = adMetrics.spend > 0 ? adMetrics.revenue / adMetrics.spend : (adMetrics.revenue > 0 ? null : 0);
+            adMetrics.cost_per_purchase = adMetrics.purchases > 0 ? adMetrics.spend / adMetrics.purchases : 0;
+            adMetrics.average_order_value = adMetrics.purchases > 0 ? adMetrics.revenue / adMetrics.purchases : 0;
+          }
+
+          return {
+            id: adId as string,
+            name: (ad.name || ad.ad_name || "Unknown Ad") as string,
+            status: (ad.status || "UNKNOWN") as string,
+            effective_status: (ad.effective_status || ad.status || "UNKNOWN") as string,
+            metrics: adMetrics,
+            actions: [],
+            action_values: [],
+          };
+        });
+
+        return {
+          id: adSetId,
+          name: (adSet.name || adSet.ad_set_name || "Unknown Ad Set") as string,
+          status: (adSet.status || "UNKNOWN") as string,
+          optimization_goal: (adSet.optimization_goal || "OFFSITE_CONVERSIONS") as string,
+          budget: {
+            daily: Number(adSet.daily_budget || 0) / 100,
+            lifetime: Number(adSet.lifetime_budget || 0) / 100,
+          },
+          metrics: adSetMetrics,
+          ads,
+        };
+      });
+
+      console.log("=== CAMPAIGN DETAILS FETCHED ===");
+      console.log("Budget:", budget);
+      console.log("Objective:", objective);
+      console.log("Campaign type:", campaignType);
+      console.log("Ad sets count:", adSets.length);
+
+      return {
+        budget,
+        objective,
+        campaign_type: campaignType,
+        ad_sets: adSets,
+      };
+    } catch (err) {
+      console.log("Exception fetching campaign details:", err);
+      return null;
     }
   }, [user]);
 
@@ -908,6 +1170,17 @@ export function useChat() {
 
         const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const sentAt = new Date().toISOString();
+
+        let campaignDetails: {
+          budget: number;
+          objective: string;
+          campaign_type: string;
+          ad_sets: WebhookAdSet[];
+        } | null = null;
+
+        if (targetCampaign) {
+          campaignDetails = await fetchCampaignDetails(targetCampaign.id, days, useShopifyData);
+        }
         
         const payload: WebhookPayload = {
           action: targetCampaign ? "analyze_selected_campaign" : "general_query",
@@ -927,11 +1200,15 @@ export function useChat() {
           last_mentioned_campaign_id: targetCampaign?.id,
           campaign_name: targetCampaign?.name,
           campaign_id: targetCampaign?.id,
+          campaign_type: campaignDetails?.campaign_type,
           data_source: dataSource,
           shopify_attribution_active: useShopifyData,
           currency: "USD",
           timeframe,
           status: targetCampaign?.status,
+          objective: campaignDetails?.objective,
+          budget: campaignDetails?.budget,
+          ad_sets: campaignDetails?.ad_sets,
           conversation_history: conversationHistory,
           request_id: requestId,
           sent_at: sentAt,
@@ -1036,6 +1313,7 @@ export function useChat() {
       performanceView,
       sendToWebhook,
       checkCanSendMessage,
+      fetchCampaignDetails,
     ]
   );
 
