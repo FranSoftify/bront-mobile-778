@@ -259,26 +259,33 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         };
       }
 
+      // Use local timezone dates to match user expectations
       const today = new Date();
-      const todayStr = today.toISOString().split('T')[0];
+      const todayYear = today.getFullYear();
+      const todayMonth = String(today.getMonth() + 1).padStart(2, '0');
+      const todayDay = String(today.getDate()).padStart(2, '0');
+      const todayStr = `${todayYear}-${todayMonth}-${todayDay}`;
+
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const yesterdayYear = yesterday.getFullYear();
+      const yesterdayMonth = String(yesterday.getMonth() + 1).padStart(2, '0');
+      const yesterdayDay = String(yesterday.getDate()).padStart(2, '0');
+      const yesterdayStr = `${yesterdayYear}-${yesterdayMonth}-${yesterdayDay}`;
 
       console.log('=== FETCHING SHOPIFY ORDERS ===');
       console.log('Today:', todayStr, 'Yesterday:', yesterdayStr);
 
       const fetchShopifyDayData = async (dateStr: string): Promise<ShopifyDayData> => {
         try {
-          const startOfDay = `${dateStr}T00:00:00.000Z`;
-          const endOfDay = `${dateStr}T23:59:59.999Z`;
-
+          // Use date-only filtering with ::date cast to avoid timezone issues
+          // Query orders where the date part of created_at matches dateStr
           const { data, error } = await supabase
             .from('shopify_orders')
-            .select('total_price, id')
+            .select('total_price, id, created_at')
             .eq('user_id', user.id)
-            .gte('created_at', startOfDay)
-            .lte('created_at', endOfDay);
+            .gte('created_at', `${dateStr}T00:00:00`)
+            .lt('created_at', `${dateStr}T23:59:59.999999`);
 
           if (error) {
             console.log(`Shopify orders error for ${dateStr}:`, error.message);
