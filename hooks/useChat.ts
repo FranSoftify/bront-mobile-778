@@ -1217,13 +1217,24 @@ export function useChat() {
         const latestChange = latestChangeResult.change;
         const latestChangeSummary = latestChangeResult.summary;
 
-        const hasShopifyConnection = selectedAdAccounts.some(
+        // Check if user has Shopify connection
+        let hasShopifyConnection = selectedAdAccounts.some(
           (acc) => acc.platform?.toLowerCase() === "shopify"
         );
         
-        // When performanceView is "bront", use Shopify attribution data
-        // The bront view is specifically for Shopify-attributed data
-        const useShopifyData = performanceView === "bront";
+        // If not found in selectedAdAccounts, check the shopify_connections table
+        if (!hasShopifyConnection && user) {
+          const { data: shopifyConn } = await supabase
+            .from('shopify_connections')
+            .select('id')
+            .eq('user_id', user.id)
+            .limit(1);
+          hasShopifyConnection = (shopifyConn?.length || 0) > 0;
+        }
+        
+        // When performanceView is "bront" AND Shopify is connected, use Shopify attribution data
+        // shopify_attribution_active should only be true when BOTH conditions are met
+        const useShopifyData = performanceView === "bront" && hasShopifyConnection;
         const dataSource = useShopifyData ? "shopify" : "meta";
         
         console.log("=== WEBHOOK DATA SOURCE CONFIG ===");
