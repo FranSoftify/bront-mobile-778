@@ -259,73 +259,64 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      // Get local date boundaries and convert to UTC ISO strings for proper database querying
-      const getLocalDayBounds = (date: Date) => {
-        const year = date.getFullYear();
-        const month = date.getMonth();
-        const day = date.getDate();
-        
-        // Start of local day
-        const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
-        // Start of next local day (exclusive upper bound)
-        const startOfNextDay = new Date(year, month, day + 1, 0, 0, 0, 0);
-        
-        return {
-          start: startOfDay.toISOString(),
-          end: startOfNextDay.toISOString(),
-          dateStr: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-        };
+      // Use UTC date strings (YYYY-MM-DD) for consistent database queries
+      const getUTCDateString = (date: Date) => {
+        return date.toISOString().split('T')[0];
       };
 
-      const today = new Date();
-      const yesterday = new Date(today);
-      yesterday.setDate(yesterday.getDate() - 1);
-
-      const todayBounds = getLocalDayBounds(today);
-      const yesterdayBounds = getLocalDayBounds(yesterday);
+      const now = new Date();
+      const todayStr = getUTCDateString(now);
+      
+      const yesterdayDate = new Date(now);
+      yesterdayDate.setUTCDate(yesterdayDate.getUTCDate() - 1);
+      const yesterdayStr = getUTCDateString(yesterdayDate);
 
       console.log('=== FETCHING SHOPIFY ORDERS ===');
-      console.log('Today bounds:', todayBounds);
-      console.log('Yesterday bounds:', yesterdayBounds);
+      console.log('Today (UTC):', todayStr);
+      console.log('Yesterday (UTC):', yesterdayStr);
 
-      const fetchShopifyDayData = async (bounds: { start: string; end: string; dateStr: string }): Promise<ShopifyDayData> => {
+      const fetchShopifyDayData = async (dateStr: string): Promise<ShopifyDayData> => {
         try {
-          // Query using UTC ISO timestamps for proper timezone handling
+          // Query using date string prefix match on created_at
+          // This matches any timestamp that starts with YYYY-MM-DD
+          const startOfDay = `${dateStr}T00:00:00`;
+          const endOfDay = `${dateStr}T23:59:59.999`;
+          
           const { data, error } = await supabase
             .from('shopify_orders')
             .select('total_price, id, created_at')
             .eq('user_id', user.id)
-            .gte('created_at', bounds.start)
-            .lt('created_at', bounds.end);
+            .gte('created_at', startOfDay)
+            .lte('created_at', endOfDay);
 
           if (error) {
-            console.log(`Shopify orders error for ${bounds.dateStr}:`, error.message);
+            console.log(`Shopify orders error for ${dateStr}:`, error.message);
             return { grossVolume: 0, orders: 0 };
           }
 
           const totalRevenue = data?.reduce((sum, order) => sum + Number(order.total_price || 0), 0) || 0;
           const orderCount = data?.length || 0;
 
-          console.log(`Shopify ${bounds.dateStr}: orders=${orderCount}, revenue=${totalRevenue}, raw data:`, data);
+          console.log(`Shopify ${dateStr}: orders=${orderCount}, revenue=${totalRevenue}, raw data:`, data);
 
           return {
             grossVolume: totalRevenue,
             orders: orderCount,
           };
         } catch (err) {
-          console.log(`Shopify orders exception for ${bounds.dateStr}:`, err);
+          console.log(`Shopify orders exception for ${dateStr}:`, err);
           return { grossVolume: 0, orders: 0 };
         }
       };
 
       const [yesterdayData, todayData] = await Promise.all([
-        fetchShopifyDayData(yesterdayBounds),
-        fetchShopifyDayData(todayBounds),
+        fetchShopifyDayData(yesterdayStr),
+        fetchShopifyDayData(todayStr),
       ]);
 
       console.log('=== SHOPIFY ORDERS RESULT ===');
-      console.log('Yesterday:', yesterdayData);
-      console.log('Today:', todayData);
+      console.log('Yesterday:', yesterdayStr, yesterdayData);
+      console.log('Today:', todayStr, todayData);
 
       return { yesterday: yesterdayData, today: todayData };
     },
