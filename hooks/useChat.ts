@@ -1323,12 +1323,11 @@ export function useChat() {
         console.log("Use Shopify data:", useShopifyData);
         console.log("Data source:", dataSource);
 
-        const days = 1;
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - days);
-        const endDate = new Date();
-        const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = endDate.toISOString().split('T')[0];
+        // "today" means current calendar day only (not 24h rolling window)
+        const today = new Date();
+        const startDateStr = today.toISOString().split('T')[0];
+        const endDateStr = today.toISOString().split('T')[0];
+        const daysForCalculation = 1; // For daily spend calculation (1 day of data)
 
         const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const sentAt = new Date().toISOString();
@@ -1341,14 +1340,15 @@ export function useChat() {
         } | null = null;
 
         if (targetCampaign) {
-          campaignDetails = await fetchCampaignDetails(targetCampaign.id, days, useShopifyData);
+          // Pass 0 to fetch only today's data (no days back)
+          campaignDetails = await fetchCampaignDetails(targetCampaign.id, 0, useShopifyData);
         }
 
         let formattedCampaign: FormattedCampaignForPayload | undefined;
         if (targetCampaign && campaignDetails) {
           const campaignInsights = buildCampaignInsights(targetCampaign, useShopifyData, campaignDetails?.ad_sets);
           const totalSpend = campaignInsights.spend;
-          const dailySpend = totalSpend / days;
+          const dailySpend = totalSpend / daysForCalculation;
           
 
           const formatCurrency = (value: number): string => `${value.toFixed(2)}`;
