@@ -216,6 +216,16 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
   const signInWithApple = async () => {
     if (Platform.OS === 'ios') {
       try {
+        console.log('[Apple Sign In] Starting Apple authentication...');
+        
+        // Check if Apple Sign In is available
+        const isAvailable = await AppleAuthentication.isAvailableAsync();
+        console.log('[Apple Sign In] isAvailable:', isAvailable);
+        
+        if (!isAvailable) {
+          throw new Error('Apple Sign In is not available on this device');
+        }
+        
         const credential = await AppleAuthentication.signInAsync({
           requestedScopes: [
             AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
@@ -223,22 +233,46 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
           ],
         });
 
-        console.log('Apple credential:', credential);
+        console.log('[Apple Sign In] Got credential from Apple');
+        console.log('[Apple Sign In] User ID:', credential.user);
+        console.log('[Apple Sign In] Email:', credential.email);
+        console.log('[Apple Sign In] Full Name:', credential.fullName);
+        console.log('[Apple Sign In] Identity Token exists:', !!credential.identityToken);
+        console.log('[Apple Sign In] Authorization Code exists:', !!credential.authorizationCode);
 
         if (credential.identityToken) {
+          console.log('[Apple Sign In] Exchanging token with Supabase...');
+          console.log('[Apple Sign In] Token length:', credential.identityToken.length);
+          
           const { data, error } = await supabase.auth.signInWithIdToken({
             provider: 'apple',
             token: credential.identityToken,
           });
 
-          if (error) throw error;
+          if (error) {
+            console.error('[Apple Sign In] Supabase error:', error);
+            console.error('[Apple Sign In] Supabase error message:', error.message);
+            console.error('[Apple Sign In] Supabase error status:', error.status);
+            throw error;
+          }
 
+          console.log('[Apple Sign In] Supabase sign in successful!');
+          console.log('[Apple Sign In] User:', data?.user?.id);
+          console.log('[Apple Sign In] Session:', !!data?.session);
+          
           return data;
+        } else {
+          console.error('[Apple Sign In] No identity token received from Apple');
+          throw new Error('No identity token received from Apple');
         }
       } catch (e: unknown) {
         const error = e as { code?: string; message?: string };
+        console.error('[Apple Sign In] Error caught:', error);
+        console.error('[Apple Sign In] Error code:', error.code);
+        console.error('[Apple Sign In] Error message:', error.message);
+        
         if (error.code === 'ERR_REQUEST_CANCELED') {
-          console.log('User canceled Apple Sign In');
+          console.log('[Apple Sign In] User canceled Apple Sign In');
           return null;
         }
         throw e;
