@@ -50,11 +50,6 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
       setConfirmationCode(generateConfirmationCode());
       setConfirmationInput("");
       setShowFarewell(false);
-      // Auto-focus the input after a short delay to allow modal animation
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 400);
-      return () => clearTimeout(timer);
     }
   }, [visible]);
 
