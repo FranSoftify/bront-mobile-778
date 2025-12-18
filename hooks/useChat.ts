@@ -24,7 +24,7 @@ const FREE_MESSAGE_LIMIT = 10;
 
 export function useChat() {
   const { user } = useAuth();
-  const { selectedAdAccounts } = useBrontData();
+  const { selectedAdAccounts, performanceView, campaignShopifyData } = useBrontData();
   const [, setLastMentionedCampaignIdState] = useState<string | null>(null);
   
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -415,18 +415,66 @@ export function useChat() {
     }
   }, [user]);
 
-  const buildCampaignInsights = useCallback((campaign: TopCampaign): CampaignInsights => {
+  const buildCampaignInsights = useCallback((campaign: TopCampaign, useShopifyData: boolean): CampaignInsights => {
+    const shopifyData = campaignShopifyData.get(campaign.id);
+    const hasShopifyData = useShopifyData && shopifyData;
+    
+    if (hasShopifyData) {
+      const shopifyRevenue = shopifyData.revenue;
+      const shopifyOrders = shopifyData.orders;
+      const metaSpend = campaign.spend;
+      const shopifyRoas = metaSpend > 0 ? shopifyRevenue / metaSpend : (shopifyRevenue > 0 ? null : 0);
+      const costPerPurchase = shopifyOrders > 0 ? metaSpend / shopifyOrders : 0;
+      const avgOrderValue = shopifyOrders > 0 ? shopifyRevenue / shopifyOrders : 0;
+      
+      return {
+        impressions: 0,
+        clicks: 0,
+        ctr: 0,
+        cpc: 0,
+        cpm: 0,
+        spend: metaSpend,
+        conversions: shopifyOrders,
+        revenue: shopifyRevenue,
+        roas: shopifyRoas,
+        purchases: shopifyOrders,
+        cost_per_purchase: costPerPurchase,
+        average_order_value: avgOrderValue,
+        meta_conversions: campaign.purchases,
+        meta_revenue: campaign.revenue,
+        meta_roas: campaign.roas,
+        shopify_conversions: shopifyOrders,
+        shopify_revenue: shopifyRevenue,
+        shopify_roas: shopifyRoas ?? undefined,
+        uses_shopify_data: true,
+        actions: [],
+        action_values: [],
+        data_source: "shopify",
+      };
+    }
+    
     return {
+      impressions: 0,
+      clicks: 0,
+      ctr: 0,
+      cpc: 0,
+      cpm: 0,
       spend: campaign.spend,
       conversions: campaign.purchases,
       revenue: campaign.revenue,
       roas: campaign.roas,
+      purchases: campaign.purchases,
+      cost_per_purchase: campaign.purchases > 0 ? campaign.spend / campaign.purchases : 0,
+      average_order_value: campaign.purchases > 0 ? campaign.revenue / campaign.purchases : 0,
       meta_conversions: campaign.purchases,
       meta_revenue: campaign.revenue,
       meta_roas: campaign.roas,
       uses_shopify_data: false,
+      actions: [],
+      action_values: [],
+      data_source: "meta",
     };
-  }, []);
+  }, [campaignShopifyData]);
 
   const saveUserMessageToDB = useCallback(
     async (content: string, clientId: string): Promise<boolean> => {
@@ -801,6 +849,9 @@ export function useChat() {
         const hasShopifyConnection = selectedAdAccounts.some(
           (acc) => acc.platform === "shopify"
         );
+        
+        const useShopifyData = performanceView === "bront" && hasShopifyConnection;
+        const dataSource = useShopifyData ? "shopify" : "meta";
 
         const days = 7;
         const startDate = new Date();
@@ -824,6 +875,8 @@ export function useChat() {
           currency: "USD",
           timeframe,
           is_sample_data: false,
+          data_source: dataSource,
+          shopify_attribution_active: useShopifyData,
         };
 
         if (targetCampaign) {
@@ -831,7 +884,8 @@ export function useChat() {
           payload.campaign_name = targetCampaign.name;
           payload.campaign_id = targetCampaign.id;
           payload.status = targetCampaign.status;
-          payload.campaignInsights = buildCampaignInsights(targetCampaign);
+          payload.campaignInsights = buildCampaignInsights(targetCampaign, useShopifyData);
+          payload.current_campaign_name = targetCampaign.name;
           payload.current_campaign_id = targetCampaign.id;
           payload.last_mentioned_campaign_id = targetCampaign.id;
           
@@ -935,6 +989,7 @@ export function useChat() {
       fetchLatestImplementedChange,
       buildCampaignInsights,
       selectedAdAccounts,
+      performanceView,
       sendToWebhook,
       checkCanSendMessage,
     ]
@@ -990,12 +1045,12 @@ export function useChat() {
     async (messageId: string, content: string): Promise<{ 
       success: boolean; 
       error?: string;
-      results?: Array<{
+      results?: {
         operation: { method: string; endpoint: string; params?: Record<string, unknown> };
         success: boolean;
         error?: string;
         entityName?: string;
-      }>;
+      }[];
     }> => {
       if (!user) {
         console.log("=== IMPLEMENT CHANGES FAILED: No user ===");
