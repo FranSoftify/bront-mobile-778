@@ -47,6 +47,14 @@ export default function DashboardScreen() {
     updateMonthlyGoals,
   } = useBrontData();
 
+  const isBrontView = performanceView === 'bront';
+
+  const formatRoas = (roas: number | undefined) => {
+    if (roas === undefined || roas === null) return '0.00';
+    if (roas === Infinity || (isBrontView && roas > 99999)) return '∞';
+    return roas.toFixed(2);
+  };
+
   const [isLocalRefreshing, setIsLocalRefreshing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGoalsSheet, setShowGoalsSheet] = useState(false);
@@ -267,7 +275,7 @@ export default function DashboardScreen() {
                 <View style={styles.snapshotMetric}>
                   <Text style={styles.snapshotLabel}>ROAS</Text>
                   <Text style={styles.snapshotValue}>
-                    {(yesterdaySnapshot?.roas || 0).toFixed(2)}
+                    {formatRoas(yesterdaySnapshot?.roas)}
                   </Text>
                 </View>
               </View>
@@ -293,7 +301,7 @@ export default function DashboardScreen() {
                 <View style={styles.snapshotMetric}>
                   <Text style={styles.snapshotLabel}>ROAS</Text>
                   <Text style={styles.snapshotValue}>
-                    {(todaySnapshot?.roas || 0).toFixed(2)}
+                    {formatRoas(todaySnapshot?.roas)}
                   </Text>
                 </View>
               </View>

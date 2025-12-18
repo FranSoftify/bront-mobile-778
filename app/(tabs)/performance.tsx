@@ -39,11 +39,15 @@ interface CampaignCardProps {
     roas: number;
     status?: string;
     daily_data?: { date: string; revenue: number }[];
+    shopifyRevenue?: number;
+    shopifyOrders?: number;
+    brontRoas?: number;
   };
   isSelected: boolean;
   onSelect: () => void;
   timeRange: "1D" | "7D" | "30D";
   breakeven: number;
+  isBrontView: boolean;
 }
 
 function CampaignCardSkeleton() {
@@ -99,7 +103,7 @@ function CampaignCardSkeleton() {
   );
 }
 
-function CampaignCard({ campaign, isSelected, onSelect, timeRange, breakeven }: CampaignCardProps) {
+function CampaignCard({ campaign, isSelected, onSelect, timeRange, breakeven, isBrontView }: CampaignCardProps) {
   const animatedProgress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -193,17 +197,21 @@ function CampaignCard({ campaign, isSelected, onSelect, timeRange, breakeven }: 
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>Revenue</Text>
               <Text style={styles.metricValue}>
-                ${campaign.revenue.toLocaleString()}
+                ${isBrontView && campaign.shopifyRevenue !== undefined 
+                  ? campaign.shopifyRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : campaign.revenue.toLocaleString()}
               </Text>
             </View>
             <View style={styles.metricItem}>
               <Text style={styles.metricLabel}>ROAS</Text>
               {(() => {
                 const isPaused = campaign.status === 'PAUSED';
-                const roasInfo = getRoasColorInfo(campaign.roas, breakeven, isPaused);
+                const displayRoas = isBrontView ? (campaign.brontRoas ?? 0) : campaign.roas;
+                const isInfinity = isBrontView && campaign.brontRoas === Infinity;
+                const roasInfo = getRoasColorInfo(isInfinity ? 999 : displayRoas, breakeven, isPaused);
                 return (
                   <Text style={[styles.metricValue, { color: roasInfo.color }]}>
-                    {campaign.roas.toFixed(2)}
+                    {isInfinity ? '∞' : displayRoas.toFixed(2)}
                   </Text>
                 );
               })()}
@@ -255,7 +263,11 @@ export default function PerformanceScreen() {
     breakevenRoas,
     selectedAdAccounts,
     refreshData,
+    performanceView,
+    campaignShopifyData,
   } = useBrontData();
+
+  const isBrontView = performanceView === 'bront';
 
   const [isLocalRefreshing, setIsLocalRefreshing] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -590,16 +602,52 @@ export default function PerformanceScreen() {
                 No campaign data available for your connected ad accounts.
               </Text>
             </View>
-          ) : topCampaigns.map((campaign) => (
-            <CampaignCard
-              key={campaign.id}
-              campaign={campaign}
-              isSelected={selectedCampaign?.id === campaign.id}
-              onSelect={() => handleCampaignSelect(campaign)}
-              timeRange={selectedTimeRange}
-              breakeven={breakevenRoas}
-            />
-          ))}
+          ) : (() => {
+            const enrichedCampaigns = topCampaigns.map((campaign) => {
+              const shopifyData = campaignShopifyData.get(campaign.id);
+              const shopifyRevenue = shopifyData?.revenue || 0;
+              const shopifyOrders = shopifyData?.orders || 0;
+              let brontRoas: number;
+              if (campaign.spend === 0 && shopifyRevenue > 0) {
+                brontRoas = Infinity;
+              } else if (campaign.spend === 0) {
+                brontRoas = 0;
+              } else {
+                brontRoas = shopifyRevenue / campaign.spend;
+              }
+              return {
+                ...campaign,
+                shopifyRevenue,
+                shopifyOrders,
+                brontRoas,
+              };
+            });
+
+            const sortedCampaigns = isBrontView
+              ? [...enrichedCampaigns].sort((a, b) => {
+                  const aHasSales = (a.shopifyRevenue || 0) > 0;
+                  const bHasSales = (b.shopifyRevenue || 0) > 0;
+                  if (aHasSales !== bHasSales) {
+                    return aHasSales ? -1 : 1;
+                  }
+                  const aRoas = a.brontRoas === Infinity ? 999999 : (a.brontRoas || 0);
+                  const bRoas = b.brontRoas === Infinity ? 999999 : (b.brontRoas || 0);
+                  return bRoas - aRoas;
+                })
+              : enrichedCampaigns;
+
+            return sortedCampaigns.map((campaign) => (
+              <CampaignCard
+                key={campaign.id}
+                campaign={campaign}
+                isSelected={selectedCampaign?.id === campaign.id}
+                onSelect={() => handleCampaignSelect(campaign)}
+                timeRange={selectedTimeRange}
+                breakeven={breakevenRoas}
+                isBrontView={isBrontView}
+              />
+            ));
+          })()}
         </View>
       </ScrollView>
     </LinearGradient>

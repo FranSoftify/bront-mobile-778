@@ -20,10 +20,17 @@ interface DaySnapshot {
   grossVolume: number;
   orders: number;
   roas: number;
+  spend?: number;
 }
 
 interface ShopifyDayData {
   grossVolume: number;
+  orders: number;
+}
+
+interface CampaignShopifyData {
+  campaignId: string;
+  revenue: number;
   orders: number;
 }
 
@@ -37,13 +44,14 @@ interface BrontDataContextType {
   currentPerformance: { spend: number; revenue: number; purchases: number; roas: number } | null | undefined;
   brontMtdPerformance: { revenue: number; orders: number } | null | undefined;
   dailyPerformance: DailyPerformance[];
-  topCampaigns: TopCampaign[];
+  topCampaigns: (TopCampaign & { shopifyRevenue?: number; shopifyOrders?: number; brontRoas?: number })[];
   topCampaignsLoading: boolean;
   recommendations: Recommendation[];
   recentActivity: RecentActivity[];
   selectedAdAccounts: SelectedAdAccount[];
   yesterdaySnapshot: DaySnapshot | null;
   todaySnapshot: DaySnapshot | null;
+  campaignShopifyData: Map<string, CampaignShopifyData>;
   breakevenRoas: number;
   isLoading: boolean;
   isRefreshing: boolean;
@@ -334,6 +342,61 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
     enabled: !!user,
   });
 
+  const campaignShopifyQuery = useQuery({
+    queryKey: ["campaignShopifyData", user?.id, user, selectedTimeRange],
+    queryFn: async (): Promise<Map<string, CampaignShopifyData>> => {
+      if (!user) {
+        return new Map();
+      }
+
+      const days = selectedTimeRange === "1D" ? 0 : selectedTimeRange === "7D" ? 6 : 29;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      const startDateStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}T00:00:00`;
+
+      console.log('=== FETCHING CAMPAIGN SHOPIFY DATA ===');
+      console.log('Start date:', startDateStr);
+
+      try {
+        const { data, error } = await supabase
+          .from('shopify_orders')
+          .select('total_price, id, created_at, utm_source, utm_campaign')
+          .eq('user_id', user.id)
+          .eq('utm_source', 'bront')
+          .gte('created_at', startDateStr);
+
+        if (error) {
+          console.log('Campaign Shopify data error:', error.message);
+          return new Map();
+        }
+
+        const campaignMap = new Map<string, CampaignShopifyData>();
+
+        data?.forEach((order) => {
+          const campaignId = order.utm_campaign;
+          if (campaignId) {
+            const existing = campaignMap.get(campaignId) || { campaignId, revenue: 0, orders: 0 };
+            existing.revenue += Number(order.total_price || 0);
+            existing.orders += 1;
+            campaignMap.set(campaignId, existing);
+          }
+        });
+
+        console.log('=== CAMPAIGN SHOPIFY DATA RESULT ===');
+        console.log('Campaigns with attribution:', campaignMap.size);
+        campaignMap.forEach((data, id) => {
+          console.log(`  Campaign ${id}: revenue=${data.revenue}, orders=${data.orders}`);
+        });
+
+        return campaignMap;
+      } catch (err) {
+        console.log('Campaign Shopify data exception:', err);
+        return new Map();
+      }
+    },
+    enabled: !!user,
+  });
+
   const brontMtdQuery = useQuery({
     queryKey: ["brontMtdPerformance", user?.id, user],
     queryFn: async (): Promise<{ revenue: number; orders: number }> => {
@@ -381,8 +444,8 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
     queryFn: async (): Promise<{ yesterday: DaySnapshot; today: DaySnapshot }> => {
       if (!user || adAccountIds.length === 0) {
         return {
-          yesterday: { grossVolume: 0, orders: 0, roas: 0 },
-          today: { grossVolume: 0, orders: 0, roas: 0 },
+          yesterday: { grossVolume: 0, orders: 0, roas: 0, spend: 0 },
+          today: { grossVolume: 0, orders: 0, roas: 0, spend: 0 },
         };
       }
 
@@ -470,6 +533,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
           grossVolume: totalRevenue,
           orders: totalOrders,
           roas: blendedRoas,
+          spend: totalSpend,
         };
       };
 
@@ -1127,6 +1191,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         daySnapshotQuery.refetch(),
         shopifyOrdersQuery.refetch(),
         brontMtdQuery.refetch(),
+        campaignShopifyQuery.refetch(),
       ]);
       console.log('=== REFRESH DATA COMPLETED ===' );
     } catch (error) {
@@ -1212,16 +1277,31 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         ? {
             grossVolume: shopifyOrdersQuery.data?.yesterday?.grossVolume || 0,
             orders: shopifyOrdersQuery.data?.yesterday?.orders || 0,
-            roas: daySnapshotQuery.data?.yesterday?.roas || 0,
+            roas: (() => {
+              const shopifyRevenue = shopifyOrdersQuery.data?.yesterday?.grossVolume || 0;
+              const metaSpend = daySnapshotQuery.data?.yesterday?.spend || 0;
+              if (metaSpend === 0 && shopifyRevenue > 0) return Infinity;
+              if (metaSpend === 0) return 0;
+              return shopifyRevenue / metaSpend;
+            })(),
+            spend: daySnapshotQuery.data?.yesterday?.spend || 0,
           }
         : daySnapshotQuery.data?.yesterday || null,
       todaySnapshot: performanceView === 'bront'
         ? {
             grossVolume: shopifyOrdersQuery.data?.today?.grossVolume || 0,
             orders: shopifyOrdersQuery.data?.today?.orders || 0,
-            roas: daySnapshotQuery.data?.today?.roas || 0,
+            roas: (() => {
+              const shopifyRevenue = shopifyOrdersQuery.data?.today?.grossVolume || 0;
+              const metaSpend = daySnapshotQuery.data?.today?.spend || 0;
+              if (metaSpend === 0 && shopifyRevenue > 0) return Infinity;
+              if (metaSpend === 0) return 0;
+              return shopifyRevenue / metaSpend;
+            })(),
+            spend: daySnapshotQuery.data?.today?.spend || 0,
           }
         : daySnapshotQuery.data?.today || null,
+      campaignShopifyData: campaignShopifyQuery.data || new Map(),
       breakevenRoas: productInfoQuery.data?.breakeven_roas ?? 1,
       isLoading:
         selectedAdAccountsQuery.isLoading ||
