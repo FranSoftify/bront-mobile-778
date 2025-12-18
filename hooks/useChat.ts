@@ -619,7 +619,6 @@ export function useChat() {
           .from("shopify_orders")
           .select("total_price, utm_campaign, utm_content, utm_term")
           .eq("user_id", user.id)
-          .eq("utm_source", "bront")
           .gte("created_at", `${startDateStr}T00:00:00`)
           .lte("created_at", `${endDateStr}T23:59:59`);
 
@@ -628,22 +627,39 @@ export function useChat() {
         }
 
         console.log("Shopify orders fetched:", shopifyOrders?.length || 0);
+        if (shopifyOrders && shopifyOrders.length > 0) {
+          console.log("Sample Shopify order:", JSON.stringify(shopifyOrders[0], null, 2));
+        }
+
+        // Build a map of ad_id -> adset_id for deriving adset metrics from ad-level data
+        const adToAdSetMap: Record<string, string> = {};
+        adsData.forEach((ad) => {
+          const adId = (ad.facebook_ad_id || ad.id) as string;
+          const adSetId = (ad.facebook_adset_id || ad.facebook_ad_set_id) as string;
+          if (adId && adSetId) {
+            adToAdSetMap[adId] = adSetId;
+          }
+        });
+        console.log("Ad to AdSet mapping count:", Object.keys(adToAdSetMap).length);
 
         (shopifyOrders || []).forEach((order) => {
           const price = Number(order.total_price || 0);
           
+          // Campaign level attribution via utm_campaign
           if (order.utm_campaign === campaignId) {
             shopifyOrdersByCampaign[campaignId] = shopifyOrdersByCampaign[campaignId] || { revenue: 0, orders: 0 };
             shopifyOrdersByCampaign[campaignId].revenue += price;
             shopifyOrdersByCampaign[campaignId].orders += 1;
           }
           
+          // Ad set level attribution via utm_content (adset_id)
           if (order.utm_content && adSetIds.includes(order.utm_content)) {
             shopifyOrdersByAdSet[order.utm_content] = shopifyOrdersByAdSet[order.utm_content] || { revenue: 0, orders: 0 };
             shopifyOrdersByAdSet[order.utm_content].revenue += price;
             shopifyOrdersByAdSet[order.utm_content].orders += 1;
           }
           
+          // Ad level attribution via utm_term (ad_id)
           if (order.utm_term && adIds.includes(order.utm_term)) {
             shopifyOrdersByAd[order.utm_term] = shopifyOrdersByAd[order.utm_term] || { revenue: 0, orders: 0 };
             shopifyOrdersByAd[order.utm_term].revenue += price;
@@ -651,9 +667,31 @@ export function useChat() {
           }
         });
 
+        // FALLBACK: If ad set attribution is missing (utm_content not present in orders),
+        // derive ad set totals from ad-level Shopify metrics
+        const derivedAdsetMetrics: Record<string, { revenue: number; orders: number }> = {};
+        Object.entries(shopifyOrdersByAd).forEach(([adId, adData]) => {
+          const adsetId = adToAdSetMap[adId];
+          if (adsetId) {
+            derivedAdsetMetrics[adsetId] = derivedAdsetMetrics[adsetId] || { revenue: 0, orders: 0 };
+            derivedAdsetMetrics[adsetId].revenue += adData.revenue;
+            derivedAdsetMetrics[adsetId].orders += adData.orders;
+          }
+        });
+
+        // Merge derived adset metrics with direct attribution (direct takes precedence)
+        Object.entries(derivedAdsetMetrics).forEach(([adsetId, derivedData]) => {
+          if (!shopifyOrdersByAdSet[adsetId]) {
+            shopifyOrdersByAdSet[adsetId] = derivedData;
+            console.log(`Derived ad set ${adsetId} metrics from ads:`, derivedData);
+          }
+        });
+
         console.log("Shopify campaign attribution:", shopifyOrdersByCampaign);
         console.log("Shopify ad set attribution count:", Object.keys(shopifyOrdersByAdSet).length);
+        console.log("Shopify ad set attribution details:", shopifyOrdersByAdSet);
         console.log("Shopify ad attribution count:", Object.keys(shopifyOrdersByAd).length);
+        console.log("Shopify ad attribution details:", shopifyOrdersByAd);
       }
 
       const aggregateInsights = (insights: Record<string, unknown>[], entityId: string, idField: string) => {
