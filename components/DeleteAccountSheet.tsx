@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -22,27 +22,44 @@ interface DeleteAccountSheetProps {
   onClose: () => void;
 }
 
-const CONFIRMATION_WORD = "DELETE";
+const generateConfirmationCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  code += Math.floor(1000000 + Math.random() * 9000000).toString();
+  return code;
+};
 
 export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSheetProps) {
   const insets = useSafeAreaInsets();
-  const { user, deleteAccount } = useAuth();
-  const [emailInput, setEmailInput] = useState("");
+  const { deleteAccount } = useAuth();
   const [confirmationInput, setConfirmationInput] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<TextInput>(null);
 
-  const userEmail = user?.email || "";
-  const isEmailValid = emailInput.toLowerCase().trim() === userEmail.toLowerCase().trim();
-  const isConfirmationValid = confirmationInput.toUpperCase().trim() === CONFIRMATION_WORD;
-  const canDelete = isEmailValid && isConfirmationValid && !isDeleting;
+  const [confirmationCode, setConfirmationCode] = useState(() => generateConfirmationCode());
+
+  useEffect(() => {
+    if (visible) {
+      setConfirmationCode(generateConfirmationCode());
+      setConfirmationInput("");
+    }
+  }, [visible]);
+  const isConfirmationValid = confirmationInput.toUpperCase().trim() === confirmationCode;
+  const canDelete = isConfirmationValid && !isDeleting;
 
   const handleClose = () => {
     if (isDeleting) return;
-    setEmailInput("");
     setConfirmationInput("");
     setError(null);
     onClose();
+  };
+
+  const handleInputPress = () => {
+    inputRef.current?.focus();
   };
 
   const handleDelete = async () => {
@@ -111,47 +128,31 @@ export default function DeleteAccountSheet({ visible, onClose }: DeleteAccountSh
                 <Text style={styles.consequenceItem}>• All your data will be permanently deleted</Text>
                 <Text style={styles.consequenceItem}>• Your connected ad accounts will be disconnected</Text>
                 <Text style={styles.consequenceItem}>• Your conversation history will be erased</Text>
-                <Text style={styles.consequenceItem}>• Your subscription will be cancelled</Text>
                 <Text style={styles.consequenceItem}>• You will not be able to recover your account</Text>
               </View>
             </View>
 
             <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>Enter your email to confirm</Text>
-              <Text style={styles.inputHint}>{userEmail}</Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  emailInput.length > 0 && (isEmailValid ? styles.inputValid : styles.inputInvalid),
-                ]}
-                placeholder="Enter your email"
-                placeholderTextColor={Colors.dark.textTertiary}
-                value={emailInput}
-                onChangeText={setEmailInput}
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoCorrect={false}
-                editable={!isDeleting}
-              />
-            </View>
-
-            <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>
-                Type <Text style={styles.confirmationWord}>{CONFIRMATION_WORD}</Text> to confirm
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  confirmationInput.length > 0 && (isConfirmationValid ? styles.inputValid : styles.inputInvalid),
-                ]}
-                placeholder={`Type ${CONFIRMATION_WORD}`}
-                placeholderTextColor={Colors.dark.textTertiary}
-                value={confirmationInput}
-                onChangeText={setConfirmationInput}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                editable={!isDeleting}
-              />
+              <Text style={styles.inputLabel}>Type this code to confirm deletion:</Text>
+              <View style={styles.codeContainer}>
+                <Text style={styles.confirmationCode}>{confirmationCode}</Text>
+              </View>
+              <TouchableOpacity activeOpacity={1} onPress={handleInputPress}>
+                <TextInput
+                  ref={inputRef}
+                  style={[
+                    styles.input,
+                    confirmationInput.length > 0 && (isConfirmationValid ? styles.inputValid : styles.inputInvalid),
+                  ]}
+                  placeholder="Enter the code above"
+                  placeholderTextColor={Colors.dark.textTertiary}
+                  value={confirmationInput}
+                  onChangeText={setConfirmationInput}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  editable={!isDeleting}
+                />
+              </TouchableOpacity>
             </View>
 
             {error && (
@@ -281,14 +282,21 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
     marginBottom: 4,
   },
-  inputHint: {
-    fontSize: 12,
-    color: Colors.dark.textTertiary,
-    marginBottom: 8,
+  codeContainer: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    alignItems: "center",
   },
-  confirmationWord: {
-    color: Colors.dark.danger,
+  confirmationCode: {
+    fontSize: 20,
     fontWeight: "700" as const,
+    color: Colors.dark.danger,
+    letterSpacing: 2,
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   input: {
     backgroundColor: Colors.dark.surface,
