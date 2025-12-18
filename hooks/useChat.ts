@@ -534,36 +534,26 @@ export function useChat() {
 
       const budget = Number(campaignData?.daily_budget || campaignData?.lifetime_budget || 0) / 100;
       const objective = campaignData?.objective || "OUTCOME_SALES";
-      const campaignType = campaignData?.buying_type === "AUCTION" ? "CBO" : (campaignData?.buying_type || "CBO");
+      
+      const isABO = campaignData && 
+        (!campaignData.daily_budget || campaignData.daily_budget === 0) && 
+        (!campaignData.lifetime_budget || campaignData.lifetime_budget === 0);
+      const campaignType = isABO ? "ABO" : "CBO";
 
       let adSetsData: Record<string, unknown>[] = [];
       
-      // Try fetching ad sets with facebook_campaign_id first
       const { data: adSetsByFbCampaignId, error: adSetsError1 } = await supabase
         .from("facebook_ad_sets")
         .select("*")
-        .eq("facebook_campaign_id", campaignId);
+        .eq("facebook_campaign_id", campaignId)
+        .eq("user_id", user.id);
 
       if (adSetsError1) {
-        console.log("Error fetching ad sets by facebook_campaign_id:", adSetsError1.message);
+        console.log("Error fetching ad sets:", adSetsError1.message);
       }
       
       if (adSetsByFbCampaignId && adSetsByFbCampaignId.length > 0) {
         adSetsData = adSetsByFbCampaignId;
-      } else {
-        // Try with campaign_id column
-        const { data: adSetsByCampaignId, error: adSetsError2 } = await supabase
-          .from("facebook_ad_sets")
-          .select("*")
-          .eq("campaign_id", campaignId);
-        
-        if (adSetsError2) {
-          console.log("Error fetching ad sets by campaign_id:", adSetsError2.message);
-        }
-        
-        if (adSetsByCampaignId && adSetsByCampaignId.length > 0) {
-          adSetsData = adSetsByCampaignId;
-        }
       }
       
       console.log("=== AD SETS DATA ===");
@@ -574,30 +564,39 @@ export function useChat() {
       }
 
       const adSetIds = (adSetsData || []).map(as => 
-        (as.facebook_ad_set_id || as.ad_set_id || as.id) as string
+        (as.facebook_adset_id || as.facebook_ad_set_id || as.id) as string
       ).filter(Boolean);
+
+      console.log("Ad set IDs for ads query:", adSetIds);
 
       let adsData: Record<string, unknown>[] = [];
       if (adSetIds.length > 0) {
         const { data: ads, error: adsError } = await supabase
           .from("facebook_ads")
           .select("*")
-          .in("facebook_ad_set_id", adSetIds);
+          .eq("facebook_campaign_id", campaignId)
+          .eq("user_id", user.id);
 
         if (adsError) {
           console.log("Error fetching ads:", adsError.message);
         }
         adsData = ads || [];
+        console.log("Ads fetched:", adsData.length);
+        if (adsData.length > 0) {
+          console.log("Sample ad columns:", Object.keys(adsData[0]));
+        }
       }
 
       const { data: adSetInsights } = await supabase
         .from("facebook_ad_set_insights")
         .select("*")
-        .in("facebook_ad_set_id", adSetIds)
+        .in("facebook_adset_id", adSetIds)
         .gte("date_start", startDateStr)
-        .lte("date_start", endDateStr);
+        .lte("date_stop", endDateStr);
 
-      const adIds = adsData.map(ad => ad.facebook_ad_id || ad.id) as string[];
+      console.log("Ad set insights fetched:", adSetInsights?.length || 0);
+
+      const adIds = adsData.map(ad => (ad.facebook_ad_id || ad.id) as string).filter(Boolean);
       let adInsights: Record<string, unknown>[] = [];
       if (adIds.length > 0) {
         const { data: insights } = await supabase
@@ -605,8 +604,9 @@ export function useChat() {
           .select("*")
           .in("facebook_ad_id", adIds)
           .gte("date_start", startDateStr)
-          .lte("date_start", endDateStr);
+          .lte("date_stop", endDateStr);
         adInsights = insights || [];
+        console.log("Ad insights fetched:", adInsights.length);
       }
 
       let shopifyOrdersByCampaign: Record<string, { revenue: number; orders: number }> = {};
@@ -614,31 +614,46 @@ export function useChat() {
       let shopifyOrdersByAd: Record<string, { revenue: number; orders: number }> = {};
 
       if (useShopifyData) {
-        const { data: shopifyOrders } = await supabase
+        console.log("=== FETCHING SHOPIFY ORDERS FOR ATTRIBUTION ===");
+        const { data: shopifyOrders, error: shopifyError } = await supabase
           .from("shopify_orders")
           .select("total_price, utm_campaign, utm_content, utm_term")
           .eq("user_id", user.id)
           .eq("utm_source", "bront")
-          .gte("created_at", `${startDateStr}T00:00:00`);
+          .gte("created_at", `${startDateStr}T00:00:00`)
+          .lte("created_at", `${endDateStr}T23:59:59`);
+
+        if (shopifyError) {
+          console.log("Error fetching Shopify orders:", shopifyError.message);
+        }
+
+        console.log("Shopify orders fetched:", shopifyOrders?.length || 0);
 
         (shopifyOrders || []).forEach((order) => {
           const price = Number(order.total_price || 0);
+          
           if (order.utm_campaign === campaignId) {
             shopifyOrdersByCampaign[campaignId] = shopifyOrdersByCampaign[campaignId] || { revenue: 0, orders: 0 };
             shopifyOrdersByCampaign[campaignId].revenue += price;
             shopifyOrdersByCampaign[campaignId].orders += 1;
           }
-          if (order.utm_content) {
+          
+          if (order.utm_content && adSetIds.includes(order.utm_content)) {
             shopifyOrdersByAdSet[order.utm_content] = shopifyOrdersByAdSet[order.utm_content] || { revenue: 0, orders: 0 };
             shopifyOrdersByAdSet[order.utm_content].revenue += price;
             shopifyOrdersByAdSet[order.utm_content].orders += 1;
           }
-          if (order.utm_term) {
+          
+          if (order.utm_term && adIds.includes(order.utm_term)) {
             shopifyOrdersByAd[order.utm_term] = shopifyOrdersByAd[order.utm_term] || { revenue: 0, orders: 0 };
             shopifyOrdersByAd[order.utm_term].revenue += price;
             shopifyOrdersByAd[order.utm_term].orders += 1;
           }
         });
+
+        console.log("Shopify campaign attribution:", shopifyOrdersByCampaign);
+        console.log("Shopify ad set attribution count:", Object.keys(shopifyOrdersByAdSet).length);
+        console.log("Shopify ad attribution count:", Object.keys(shopifyOrdersByAd).length);
       }
 
       const aggregateInsights = (insights: Record<string, unknown>[], entityId: string, idField: string) => {
@@ -676,38 +691,53 @@ export function useChat() {
       };
 
       const adSets: WebhookAdSet[] = (adSetsData || []).map((adSet) => {
-        // Try multiple ID fields to get the Facebook ad set ID
-        const adSetId = (adSet.facebook_ad_set_id || adSet.ad_set_id || adSet.id) as string;
+        const adSetId = (adSet.facebook_adset_id || adSet.facebook_ad_set_id || adSet.id) as string;
         const adSetAds = adsData.filter(ad => {
-          const adAdSetId = (ad.facebook_ad_set_id || ad.ad_set_id) as string;
-          return adAdSetId === adSetId || adAdSetId === adSet.facebook_ad_set_id || adAdSetId === adSet.id;
+          const adAdSetId = (ad.facebook_adset_id || ad.facebook_ad_set_id) as string;
+          return adAdSetId === adSetId;
         });
         
-        let adSetMetrics = aggregateInsights(adSetInsights || [], adSetId, "facebook_ad_set_id");
+        let adSetMetrics = aggregateInsights(adSetInsights || [], adSetId, "facebook_adset_id");
         
-        if (useShopifyData && shopifyOrdersByAdSet[adSetId]) {
-          adSetMetrics.purchases = shopifyOrdersByAdSet[adSetId].orders;
-          adSetMetrics.revenue = shopifyOrdersByAdSet[adSetId].revenue;
-          adSetMetrics.roas = adSetMetrics.spend > 0 ? adSetMetrics.revenue / adSetMetrics.spend : (adSetMetrics.revenue > 0 ? null : 0);
+        if (useShopifyData) {
+          const shopifyData = shopifyOrdersByAdSet[adSetId];
+          if (shopifyData) {
+            adSetMetrics.purchases = shopifyData.orders;
+            adSetMetrics.revenue = shopifyData.revenue;
+          } else {
+            adSetMetrics.purchases = 0;
+            adSetMetrics.revenue = 0;
+          }
+          adSetMetrics.roas = adSetMetrics.spend > 0 
+            ? adSetMetrics.revenue / adSetMetrics.spend 
+            : (adSetMetrics.revenue > 0 ? null : 0);
           adSetMetrics.cost_per_purchase = adSetMetrics.purchases > 0 ? adSetMetrics.spend / adSetMetrics.purchases : 0;
           adSetMetrics.average_order_value = adSetMetrics.purchases > 0 ? adSetMetrics.revenue / adSetMetrics.purchases : 0;
         }
 
         const ads: WebhookAd[] = adSetAds.map((ad) => {
-          const adId = ad.facebook_ad_id || ad.id;
-          let adMetrics = aggregateInsights(adInsights, adId as string, "facebook_ad_id");
+          const adId = (ad.facebook_ad_id || ad.id) as string;
+          let adMetrics = aggregateInsights(adInsights, adId, "facebook_ad_id");
           
-          if (useShopifyData && shopifyOrdersByAd[adId as string]) {
-            adMetrics.purchases = shopifyOrdersByAd[adId as string].orders;
-            adMetrics.revenue = shopifyOrdersByAd[adId as string].revenue;
-            adMetrics.roas = adMetrics.spend > 0 ? adMetrics.revenue / adMetrics.spend : (adMetrics.revenue > 0 ? null : 0);
+          if (useShopifyData) {
+            const shopifyData = shopifyOrdersByAd[adId];
+            if (shopifyData) {
+              adMetrics.purchases = shopifyData.orders;
+              adMetrics.revenue = shopifyData.revenue;
+            } else {
+              adMetrics.purchases = 0;
+              adMetrics.revenue = 0;
+            }
+            adMetrics.roas = adMetrics.spend > 0 
+              ? adMetrics.revenue / adMetrics.spend 
+              : (adMetrics.revenue > 0 ? null : 0);
             adMetrics.cost_per_purchase = adMetrics.purchases > 0 ? adMetrics.spend / adMetrics.purchases : 0;
             adMetrics.average_order_value = adMetrics.purchases > 0 ? adMetrics.revenue / adMetrics.purchases : 0;
           }
 
           return {
-            id: adId as string,
-            name: (ad.name || ad.ad_name || "Unknown Ad") as string,
+            id: adId,
+            name: (ad.ad_name || ad.name || "Unknown Ad") as string,
             status: (ad.status || "UNKNOWN") as string,
             effective_status: (ad.effective_status || ad.status || "UNKNOWN") as string,
             metrics: adMetrics,
@@ -716,7 +746,7 @@ export function useChat() {
           };
         });
 
-        const adSetName = (adSet.name || adSet.ad_set_name || adSet.adset_name || "Unknown Ad Set") as string;
+        const adSetName = (adSet.adset_name || adSet.ad_set_name || adSet.name || "Unknown Ad Set") as string;
         
         console.log(`Ad Set: ${adSetId} - ${adSetName} - Ads count: ${ads.length}`);
         
