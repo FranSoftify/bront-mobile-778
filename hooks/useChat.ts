@@ -634,36 +634,46 @@ export function useChat() {
         // Build a map of ad_id -> adset_id for deriving adset metrics from ad-level data
         const adToAdSetMap: Record<string, string> = {};
         adsData.forEach((ad) => {
-          const adId = (ad.facebook_ad_id || ad.id) as string;
-          const adSetId = (ad.facebook_adset_id || ad.facebook_ad_set_id) as string;
+          const adId = String(ad.facebook_ad_id || ad.id || '').trim();
+          const adSetId = String(ad.facebook_adset_id || ad.facebook_ad_set_id || '').trim();
           if (adId && adSetId) {
             adToAdSetMap[adId] = adSetId;
           }
         });
         console.log("Ad to AdSet mapping count:", Object.keys(adToAdSetMap).length);
+        console.log("Ad IDs for matching:", adIds);
+        console.log("AdSet IDs for matching:", adSetIds);
 
         (shopifyOrders || []).forEach((order) => {
           const price = Number(order.total_price || 0);
+          const utmCampaign = String(order.utm_campaign || '').trim();
+          const utmContent = String(order.utm_content || '').trim();
+          const utmTerm = String(order.utm_term || '').trim();
+          
+          console.log("Processing Shopify order - utm_campaign:", utmCampaign, "utm_content:", utmContent, "utm_term:", utmTerm, "price:", price);
           
           // Campaign level attribution via utm_campaign
-          if (order.utm_campaign === campaignId) {
+          if (utmCampaign && utmCampaign === campaignId) {
             shopifyOrdersByCampaign[campaignId] = shopifyOrdersByCampaign[campaignId] || { revenue: 0, orders: 0 };
             shopifyOrdersByCampaign[campaignId].revenue += price;
             shopifyOrdersByCampaign[campaignId].orders += 1;
+            console.log("Attributed to campaign:", campaignId);
           }
           
           // Ad set level attribution via utm_content (adset_id)
-          if (order.utm_content && adSetIds.includes(order.utm_content)) {
-            shopifyOrdersByAdSet[order.utm_content] = shopifyOrdersByAdSet[order.utm_content] || { revenue: 0, orders: 0 };
-            shopifyOrdersByAdSet[order.utm_content].revenue += price;
-            shopifyOrdersByAdSet[order.utm_content].orders += 1;
+          if (utmContent && adSetIds.map(id => String(id).trim()).includes(utmContent)) {
+            shopifyOrdersByAdSet[utmContent] = shopifyOrdersByAdSet[utmContent] || { revenue: 0, orders: 0 };
+            shopifyOrdersByAdSet[utmContent].revenue += price;
+            shopifyOrdersByAdSet[utmContent].orders += 1;
+            console.log("Attributed to ad set:", utmContent);
           }
           
           // Ad level attribution via utm_term (ad_id)
-          if (order.utm_term && adIds.includes(order.utm_term)) {
-            shopifyOrdersByAd[order.utm_term] = shopifyOrdersByAd[order.utm_term] || { revenue: 0, orders: 0 };
-            shopifyOrdersByAd[order.utm_term].revenue += price;
-            shopifyOrdersByAd[order.utm_term].orders += 1;
+          if (utmTerm && adIds.map(id => String(id).trim()).includes(utmTerm)) {
+            shopifyOrdersByAd[utmTerm] = shopifyOrdersByAd[utmTerm] || { revenue: 0, orders: 0 };
+            shopifyOrdersByAd[utmTerm].revenue += price;
+            shopifyOrdersByAd[utmTerm].orders += 1;
+            console.log("Attributed to ad:", utmTerm);
           }
         });
 
@@ -694,7 +704,13 @@ export function useChat() {
         console.log("Shopify ad attribution details:", shopifyOrdersByAd);
       }
 
-      const aggregateInsights = (insights: Record<string, unknown>[], entityId: string, idField: string) => {
+      // Purchase action types to filter out when in Bront View
+      const PURCHASE_ACTION_TYPES = [
+        'offsite_conversion.fb_pixel_purchase', 'purchase', 'omni_purchase',
+        'onsite_web_purchase', 'onsite_web_app_purchase', 'web_in_store_purchase'
+      ];
+
+      const aggregateInsights = (insights: Record<string, unknown>[], entityId: string, idField: string, excludePurchases: boolean = false) => {
         const relevant = insights.filter(i => i[idField] === entityId);
         const metrics = createEmptyMetrics();
         
@@ -707,13 +723,16 @@ export function useChat() {
           const actions = insight.actions as { action_type: string; value: string | number }[] | null;
           const actionValues = insight.action_values as { action_type: string; value: string | number }[] | null;
           
-          const purchases = actions?.find(a => a.action_type === "purchase");
-          const revenue = actionValues?.find(a => a.action_type === "purchase");
+          // When excludePurchases is true (Bront View), don't include Meta purchase data
+          if (!excludePurchases) {
+            const purchases = actions?.find(a => a.action_type === "purchase" || PURCHASE_ACTION_TYPES.includes(a.action_type));
+            const revenue = actionValues?.find(a => a.action_type === "purchase" || PURCHASE_ACTION_TYPES.includes(a.action_type));
+            metrics.purchases += purchases ? Number(purchases.value) : 0;
+            metrics.revenue += revenue ? Number(revenue.value) : 0;
+          }
+          
           const addToCarts = actions?.find(a => a.action_type === "add_to_cart");
           const checkouts = actions?.find(a => a.action_type === "initiate_checkout");
-          
-          metrics.purchases += purchases ? Number(purchases.value) : 0;
-          metrics.revenue += revenue ? Number(revenue.value) : 0;
           metrics.add_to_carts += addToCarts ? Number(addToCarts.value) : 0;
           metrics.checkouts += checkouts ? Number(checkouts.value) : 0;
         });
@@ -729,16 +748,18 @@ export function useChat() {
       };
 
       const adSets: WebhookAdSet[] = (adSetsData || []).map((adSet) => {
-        const adSetId = (adSet.facebook_adset_id || adSet.facebook_ad_set_id || adSet.id) as string;
+        const adSetId = String(adSet.facebook_adset_id || adSet.facebook_ad_set_id || adSet.id || '').trim();
         const adSetAds = adsData.filter(ad => {
-          const adAdSetId = (ad.facebook_adset_id || ad.facebook_ad_set_id) as string;
+          const adAdSetId = String(ad.facebook_adset_id || ad.facebook_ad_set_id || '').trim();
           return adAdSetId === adSetId;
         });
         
-        let adSetMetrics = aggregateInsights(adSetInsights || [], adSetId, "facebook_adset_id");
+        // When using Shopify data, exclude Meta purchase data from aggregation
+        let adSetMetrics = aggregateInsights(adSetInsights || [], adSetId, "facebook_adset_id", useShopifyData);
         
         if (useShopifyData) {
           const shopifyData = shopifyOrdersByAdSet[adSetId];
+          console.log(`Ad Set ${adSetId} Shopify data:`, shopifyData);
           if (shopifyData) {
             adSetMetrics.purchases = shopifyData.orders;
             adSetMetrics.revenue = shopifyData.revenue;
@@ -754,11 +775,13 @@ export function useChat() {
         }
 
         const ads: WebhookAd[] = adSetAds.map((ad) => {
-          const adId = (ad.facebook_ad_id || ad.id) as string;
-          let adMetrics = aggregateInsights(adInsights, adId, "facebook_ad_id");
+          const adId = String(ad.facebook_ad_id || ad.id || '').trim();
+          // When using Shopify data, exclude Meta purchase data from aggregation
+          let adMetrics = aggregateInsights(adInsights, adId, "facebook_ad_id", useShopifyData);
           
           if (useShopifyData) {
             const shopifyData = shopifyOrdersByAd[adId];
+            console.log(`Ad ${adId} (${ad.ad_name}) Shopify data:`, shopifyData);
             if (shopifyData) {
               adMetrics.purchases = shopifyData.orders;
               adMetrics.revenue = shopifyData.revenue;
