@@ -841,24 +841,38 @@ export function useChat() {
     }
   }, [user]);
 
-  const buildCampaignInsights = useCallback((campaign: TopCampaign, useShopifyData: boolean): CampaignInsights => {
+  const buildCampaignInsights = useCallback((campaign: TopCampaign, useShopifyData: boolean, adSets?: WebhookAdSet[]): CampaignInsights => {
+    // Aggregate performance metrics from ad sets if available
+    let totalImpressions = 0;
+    let totalClicks = 0;
+    let totalSpend = campaign.spend;
+    
+    if (adSets && adSets.length > 0) {
+      totalImpressions = adSets.reduce((sum, as) => sum + (as.metrics.impressions || 0), 0);
+      totalClicks = adSets.reduce((sum, as) => sum + (as.metrics.clicks || 0), 0);
+      totalSpend = adSets.reduce((sum, as) => sum + (as.metrics.spend || 0), 0);
+    }
+    
+    const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+    const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+    const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
     const shopifyData = campaignShopifyData.get(campaign.id);
     const hasShopifyData = useShopifyData && shopifyData;
     
     if (hasShopifyData) {
       const shopifyRevenue = shopifyData.revenue;
       const shopifyOrders = shopifyData.orders;
-      const metaSpend = campaign.spend;
+      const metaSpend = totalSpend;
       const shopifyRoas = metaSpend > 0 ? shopifyRevenue / metaSpend : (shopifyRevenue > 0 ? null : 0);
       const costPerPurchase = shopifyOrders > 0 ? metaSpend / shopifyOrders : 0;
       const avgOrderValue = shopifyOrders > 0 ? shopifyRevenue / shopifyOrders : 0;
       
       return {
-        impressions: 0,
-        clicks: 0,
-        ctr: 0,
-        cpc: 0,
-        cpm: 0,
+        impressions: totalImpressions,
+        clicks: totalClicks,
+        ctr,
+        cpc,
+        cpm,
         spend: metaSpend,
         conversions: shopifyOrders,
         revenue: shopifyRevenue,
@@ -877,22 +891,33 @@ export function useChat() {
       };
     }
     
+    // Aggregate purchases and revenue from ad sets if available
+    let totalPurchases = campaign.purchases;
+    let totalRevenue = campaign.revenue;
+    
+    if (adSets && adSets.length > 0) {
+      totalPurchases = adSets.reduce((sum, as) => sum + (as.metrics.purchases || 0), 0);
+      totalRevenue = adSets.reduce((sum, as) => sum + (as.metrics.revenue || 0), 0);
+    }
+    
+    const roas = totalSpend > 0 ? totalRevenue / totalSpend : (totalRevenue > 0 ? null : 0);
+    
     return {
-      impressions: 0,
-      clicks: 0,
-      ctr: 0,
-      cpc: 0,
-      cpm: 0,
-      spend: campaign.spend,
-      conversions: campaign.purchases,
-      revenue: campaign.revenue,
-      roas: campaign.roas,
-      purchases: campaign.purchases,
-      cost_per_purchase: campaign.purchases > 0 ? campaign.spend / campaign.purchases : 0,
-      average_order_value: campaign.purchases > 0 ? campaign.revenue / campaign.purchases : 0,
-      meta_conversions: campaign.purchases,
-      meta_revenue: campaign.revenue,
-      meta_roas: campaign.roas,
+      impressions: totalImpressions,
+      clicks: totalClicks,
+      ctr,
+      cpc,
+      cpm,
+      spend: totalSpend,
+      conversions: totalPurchases,
+      revenue: totalRevenue,
+      roas,
+      purchases: totalPurchases,
+      cost_per_purchase: totalPurchases > 0 ? totalSpend / totalPurchases : 0,
+      average_order_value: totalPurchases > 0 ? totalRevenue / totalPurchases : 0,
+      meta_conversions: totalPurchases,
+      meta_revenue: totalRevenue,
+      meta_roas: roas ?? undefined,
       uses_shopify_data: false,
       data_source: "Facebook Pixel",
     };
@@ -1298,7 +1323,7 @@ export function useChat() {
         console.log("Use Shopify data:", useShopifyData);
         console.log("Data source:", dataSource);
 
-        const days = 7;
+        const days = 1;
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
         const endDate = new Date();
@@ -1321,10 +1346,10 @@ export function useChat() {
 
         let formattedCampaign: FormattedCampaignForPayload | undefined;
         if (targetCampaign && campaignDetails) {
-          const campaignInsights = buildCampaignInsights(targetCampaign, useShopifyData);
+          const campaignInsights = buildCampaignInsights(targetCampaign, useShopifyData, campaignDetails?.ad_sets);
           const totalSpend = campaignInsights.spend;
           const dailySpend = totalSpend / days;
-          const dateRangeLabel = `last_7_days (${startDateStr} to ${endDateStr})`;
+          
 
           const formatCurrency = (value: number): string => `${value.toFixed(2)}`;
           const formatPercent = (value: number): string => `${value.toFixed(2)}%`;
@@ -1335,7 +1360,7 @@ export function useChat() {
             type: campaignDetails.campaign_type || "CBO",
             status: targetCampaign.status,
             objective: campaignDetails.objective || "OUTCOME_SALES",
-            date_range: dateRangeLabel,
+            date_range: `today (${startDateStr} to ${endDateStr})`,
             spend_metrics: {
               total_spend: formatCurrency(totalSpend),
               daily_spend: formatCurrency(dailySpend),
