@@ -32,7 +32,7 @@ import {
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
-import { useBrontData, PerformanceView } from "@/contexts/BrontDataContext";
+import { useBrontData } from "@/contexts/BrontDataContext";
 import DeleteAccountSheet from "@/components/DeleteAccountSheet";
 
 interface SettingsModalProps {
@@ -327,7 +327,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                   <View style={styles.adAccountHeaderText}>
                     <Text style={styles.menuItemLabel}>Data View</Text>
                     <Text style={styles.menuItemValue}>
-                      {performanceView === "bront" ? "Bront View" : "Meta View"}
+                      {performanceView === "bront" ? "Bront View" : "Facebook Pixel View"}
                     </Text>
                   </View>
                 </View>
@@ -349,7 +349,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                         if (Platform.OS !== "web") {
                           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         }
-                        setPerformanceView("bront" as PerformanceView);
+                        setPerformanceView("bront");
                       }}
                     >
                       <View style={styles.dropdownItemContent}>
@@ -377,33 +377,33 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                     <TouchableOpacity
                       style={[
                         styles.dropdownItem,
-                        performanceView === "meta" && styles.dropdownItemSelected,
+                        performanceView === "facebook" && styles.dropdownItemSelected,
                       ]}
                       onPress={async () => {
                         if (Platform.OS !== "web") {
                           await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         }
-                        setPerformanceView("meta" as PerformanceView);
+                        setPerformanceView("facebook");
                       }}
                     >
                       <View style={styles.dropdownItemContent}>
                         <View style={[
                           styles.adAccountDot,
-                          performanceView === "meta" && styles.adAccountDotActive,
+                          performanceView === "facebook" && styles.adAccountDotActive,
                         ]} />
                         <View style={styles.dropdownTextContainer}>
                           <Text style={[
                             styles.dropdownItemText,
-                            performanceView === "meta" && styles.dropdownItemTextSelected,
+                            performanceView === "facebook" && styles.dropdownItemTextSelected,
                           ]}>
-                            Meta View
+                            Facebook Pixel View
                           </Text>
                           <Text style={styles.dropdownItemSubtext}>
                             Meta reported conversions
                           </Text>
                         </View>
                       </View>
-                      {performanceView === "meta" && (
+                      {performanceView === "facebook" && (
                         <Check size={16} color={Colors.dark.success} />
                       )}
                     </TouchableOpacity>

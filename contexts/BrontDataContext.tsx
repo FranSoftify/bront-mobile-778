@@ -35,7 +35,7 @@ interface CampaignShopifyData {
 }
 
 export type AdAccountFilter = "all" | string;
-export type PerformanceView = "bront" | "meta";
+export type PerformanceView = "bront" | "facebook";
 
 interface BrontDataContextType {
   profile: Profile | null | undefined;
@@ -90,10 +90,41 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(PERFORMANCE_VIEW_KEY).then((value) => {
       if (value) {
         console.log('Loaded performance view from storage:', value);
-        setPerformanceViewState(value as PerformanceView);
+        const normalizedValue = value === 'meta' ? 'facebook' : value;
+        setPerformanceViewState(normalizedValue as PerformanceView);
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchDataViewPreference = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('data_view_preference')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (error) {
+          console.log('Error fetching data_view_preference:', error.message);
+          return;
+        }
+        
+        if (data?.data_view_preference) {
+          const dbPreference = data.data_view_preference as PerformanceView;
+          console.log('Loaded data_view_preference from database:', dbPreference);
+          setPerformanceViewState(dbPreference);
+          await AsyncStorage.setItem(PERFORMANCE_VIEW_KEY, dbPreference);
+        }
+      } catch (err) {
+        console.log('Exception fetching data_view_preference:', err);
+      }
+    };
+    
+    fetchDataViewPreference();
+  }, [user]);
 
   const setAdAccountFilter = async (filter: AdAccountFilter) => {
     console.log('=== SETTING AD ACCOUNT FILTER ===', filter);
@@ -105,6 +136,20 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
     console.log('=== SETTING PERFORMANCE VIEW ===', view);
     setPerformanceViewState(view);
     await AsyncStorage.setItem(PERFORMANCE_VIEW_KEY, view);
+    
+    if (user) {
+      supabase
+        .from('profiles')
+        .update({ data_view_preference: view })
+        .eq('user_id', user.id)
+        .then(({ error }) => {
+          if (error) {
+            console.log('Error saving data_view_preference to database:', error.message);
+          } else {
+            console.log('data_view_preference saved to database:', view);
+          }
+        });
+    }
   };
 
   const setSelectedCampaign = async (campaign: TopCampaign | null) => {
