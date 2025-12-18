@@ -26,11 +26,12 @@ import {
   Trash2,
   ChevronDown,
   Check,
+  Eye,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
-import { useBrontData } from "@/contexts/BrontDataContext";
+import { useBrontData, PerformanceView } from "@/contexts/BrontDataContext";
 
 interface SettingsModalProps {
   visible: boolean;
@@ -42,8 +43,9 @@ const APP_VERSION = "1.0.0";
 export default function SettingsModal({ visible, onClose }: SettingsModalProps) {
   const insets = useSafeAreaInsets();
   const { user, signOut } = useAuth();
-  const { profile, subscriptionTier, selectedAdAccounts, adAccountFilter, setAdAccountFilter } = useBrontData();
+  const { profile, subscriptionTier, selectedAdAccounts, adAccountFilter, setAdAccountFilter, performanceView, setPerformanceView } = useBrontData();
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
+  const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
 
   const handlePress = async (action: () => void) => {
     if (Platform.OS !== "web") {
@@ -291,6 +293,112 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
                         </TouchableOpacity>
                       );
                     })}
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Performance View</Text>
+            
+            <View style={styles.card}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={async () => {
+                  if (Platform.OS !== "web") {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  setViewDropdownOpen(!viewDropdownOpen);
+                }}
+              >
+                <View style={styles.menuItemLeft}>
+                  <View style={[styles.iconContainer, { backgroundColor: "#10B981" + "20" }]}>
+                    <Eye size={18} color="#10B981" />
+                  </View>
+                  <View style={styles.adAccountHeaderText}>
+                    <Text style={styles.menuItemLabel}>Data View</Text>
+                    <Text style={styles.menuItemValue}>
+                      {performanceView === "bront" ? "Bront View" : "Meta View"}
+                    </Text>
+                  </View>
+                </View>
+                <Animated.View style={{ transform: [{ rotate: viewDropdownOpen ? '180deg' : '0deg' }] }}>
+                  <ChevronDown size={18} color={Colors.dark.textTertiary} />
+                </Animated.View>
+              </TouchableOpacity>
+
+              {viewDropdownOpen && (
+                <>
+                  <View style={styles.divider} />
+                  <View style={styles.adAccountsDropdown}>
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        performanceView === "bront" && styles.dropdownItemSelected,
+                      ]}
+                      onPress={async () => {
+                        if (Platform.OS !== "web") {
+                          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }
+                        setPerformanceView("bront" as PerformanceView);
+                      }}
+                    >
+                      <View style={styles.dropdownItemContent}>
+                        <View style={[
+                          styles.adAccountDot,
+                          performanceView === "bront" && styles.adAccountDotActive,
+                        ]} />
+                        <View style={styles.dropdownTextContainer}>
+                          <Text style={[
+                            styles.dropdownItemText,
+                            performanceView === "bront" && styles.dropdownItemTextSelected,
+                          ]}>
+                            Bront View
+                          </Text>
+                          <Text style={styles.dropdownItemSubtext}>
+                            Enhanced analytics view
+                          </Text>
+                        </View>
+                      </View>
+                      {performanceView === "bront" && (
+                        <Check size={16} color={Colors.dark.success} />
+                      )}
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownItem,
+                        performanceView === "meta" && styles.dropdownItemSelected,
+                      ]}
+                      onPress={async () => {
+                        if (Platform.OS !== "web") {
+                          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        }
+                        setPerformanceView("meta" as PerformanceView);
+                      }}
+                    >
+                      <View style={styles.dropdownItemContent}>
+                        <View style={[
+                          styles.adAccountDot,
+                          performanceView === "meta" && styles.adAccountDotActive,
+                        ]} />
+                        <View style={styles.dropdownTextContainer}>
+                          <Text style={[
+                            styles.dropdownItemText,
+                            performanceView === "meta" && styles.dropdownItemTextSelected,
+                          ]}>
+                            Meta View
+                          </Text>
+                          <Text style={styles.dropdownItemSubtext}>
+                            Standard Meta metrics
+                          </Text>
+                        </View>
+                      </View>
+                      {performanceView === "meta" && (
+                        <Check size={16} color={Colors.dark.success} />
+                      )}
+                    </TouchableOpacity>
                   </View>
                 </>
               )}

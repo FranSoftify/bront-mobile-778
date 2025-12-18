@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 
 const SELECTED_FILTER_KEY = "bront_selected_ad_account_filter";
+const PERFORMANCE_VIEW_KEY = "bront_performance_view";
 
 interface DaySnapshot {
   grossVolume: number;
@@ -22,6 +23,7 @@ interface DaySnapshot {
 }
 
 export type AdAccountFilter = "all" | string;
+export type PerformanceView = "bront" | "meta";
 
 interface BrontDataContextType {
   profile: Profile | null | undefined;
@@ -47,6 +49,8 @@ interface BrontDataContextType {
   setSelectedCampaign: (campaign: TopCampaign | null) => void;
   adAccountFilter: AdAccountFilter;
   setAdAccountFilter: (filter: AdAccountFilter) => void;
+  performanceView: PerformanceView;
+  setPerformanceView: (view: PerformanceView) => void;
   refreshData: () => Promise<void>;
   updateMonthlyGoals: (goals: { revenueTarget: number; adSpendBudget: number; roasTarget: number }) => Promise<void>;
 }
@@ -60,6 +64,7 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
   const [selectedCampaign, setSelectedCampaignState] = useState<TopCampaign | null>(null);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [adAccountFilter, setAdAccountFilterState] = useState<AdAccountFilter>("all");
+  const [performanceView, setPerformanceViewState] = useState<PerformanceView>("bront");
 
   useEffect(() => {
     AsyncStorage.getItem(SELECTED_FILTER_KEY).then((value) => {
@@ -68,12 +73,24 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         setAdAccountFilterState(value as AdAccountFilter);
       }
     });
+    AsyncStorage.getItem(PERFORMANCE_VIEW_KEY).then((value) => {
+      if (value) {
+        console.log('Loaded performance view from storage:', value);
+        setPerformanceViewState(value as PerformanceView);
+      }
+    });
   }, []);
 
   const setAdAccountFilter = async (filter: AdAccountFilter) => {
     console.log('=== SETTING AD ACCOUNT FILTER ===', filter);
     setAdAccountFilterState(filter);
     await AsyncStorage.setItem(SELECTED_FILTER_KEY, filter);
+  };
+
+  const setPerformanceView = async (view: PerformanceView) => {
+    console.log('=== SETTING PERFORMANCE VIEW ===', view);
+    setPerformanceViewState(view);
+    await AsyncStorage.setItem(PERFORMANCE_VIEW_KEY, view);
   };
 
   const setSelectedCampaign = async (campaign: TopCampaign | null) => {
@@ -1073,6 +1090,8 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
       setSelectedCampaign,
       adAccountFilter,
       setAdAccountFilter,
+      performanceView,
+      setPerformanceView,
       refreshData,
       updateMonthlyGoals,
     }}>
