@@ -432,7 +432,7 @@ export function useChat() {
         .select("role, content, created_at, implemented, feedback")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
-        .limit(10);
+        .limit(6);
 
       if (error) {
         console.log("Error fetching conversation history:", error.message);
