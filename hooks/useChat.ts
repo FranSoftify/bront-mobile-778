@@ -1327,7 +1327,6 @@ export function useChat() {
         const today = new Date();
         const startDateStr = today.toISOString().split('T')[0];
         const endDateStr = today.toISOString().split('T')[0];
-        const daysForCalculation = 1; // For daily spend calculation (1 day of data)
 
         const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         const sentAt = new Date().toISOString();
@@ -1348,7 +1347,7 @@ export function useChat() {
         if (targetCampaign && campaignDetails) {
           const campaignInsights = buildCampaignInsights(targetCampaign, useShopifyData, campaignDetails?.ad_sets);
           const totalSpend = campaignInsights.spend;
-          const dailySpend = totalSpend / daysForCalculation;
+          const dailyBudget = campaignDetails.budget || 0; // Campaign's configured daily budget
           
 
           const formatCurrency = (value: number): string => `${value.toFixed(2)}`;
@@ -1363,7 +1362,7 @@ export function useChat() {
             date_range: `today (${startDateStr} to ${endDateStr})`,
             spend_metrics: {
               total_spend: formatCurrency(totalSpend),
-              daily_spend: formatCurrency(dailySpend),
+              daily_spend: formatCurrency(dailyBudget),
             },
             performance_metrics: {
               impressions: campaignInsights.impressions || 0,
