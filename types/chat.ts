@@ -50,9 +50,7 @@ export interface CampaignInsights {
   purchases?: number;
   cost_per_purchase?: number;
   average_order_value?: number;
-  actions?: unknown[];
-  action_values?: unknown[];
-  data_source?: "shopify" | "meta";
+  data_source?: "Facebook Pixel" | "Shopify";
 }
 
 export interface AdMetrics {
@@ -105,8 +103,7 @@ export interface WebhookAd {
   status: string;
   effective_status: string;
   metrics: AdMetrics;
-  actions: unknown[];
-  action_values: unknown[];
+
 }
 
 export interface WebhookAdSet {
@@ -166,7 +163,7 @@ export interface WebhookPayload {
   current_campaign_id?: string;
   current_campaign_name?: string;
   last_mentioned_campaign_id?: string;
-  data_source?: "shopify" | "meta";
+  data_source?: "Facebook Pixel" | "Shopify";
   shopify_attribution_active?: boolean;
   ad_sets?: WebhookAdSet[];
   action?: string;

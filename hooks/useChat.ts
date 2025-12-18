@@ -802,8 +802,6 @@ export function useChat() {
             status: (ad.status || "UNKNOWN") as string,
             effective_status: (ad.effective_status || ad.status || "UNKNOWN") as string,
             metrics: adMetrics,
-            actions: [],
-            action_values: [],
           };
         });
 
@@ -875,9 +873,7 @@ export function useChat() {
         shopify_revenue: shopifyRevenue,
         shopify_roas: shopifyRoas ?? undefined,
         uses_shopify_data: true,
-        actions: [],
-        action_values: [],
-        data_source: "shopify",
+        data_source: "Shopify",
       };
     }
     
@@ -898,9 +894,7 @@ export function useChat() {
       meta_revenue: campaign.revenue,
       meta_roas: campaign.roas,
       uses_shopify_data: false,
-      actions: [],
-      action_values: [],
-      data_source: "meta",
+      data_source: "Facebook Pixel",
     };
   }, [campaignShopifyData]);
 
@@ -1296,7 +1290,7 @@ export function useChat() {
         // When performanceView is "bront" AND Shopify is connected, use Shopify attribution data
         // shopify_attribution_active should only be true when BOTH conditions are met
         const useShopifyData = performanceView === "bront" && hasShopifyConnection;
-        const dataSource = useShopifyData ? "shopify" : "meta";
+        const dataSource = useShopifyData ? "Shopify" : "Facebook Pixel";
         
         console.log("=== WEBHOOK DATA SOURCE CONFIG ===");
         console.log("Performance view:", performanceView);
