@@ -259,57 +259,68 @@ export function BrontDataProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      // Use local timezone dates to match user expectations
-      const today = new Date();
-      const todayYear = today.getFullYear();
-      const todayMonth = String(today.getMonth() + 1).padStart(2, '0');
-      const todayDay = String(today.getDate()).padStart(2, '0');
-      const todayStr = `${todayYear}-${todayMonth}-${todayDay}`;
+      // Get local date boundaries and convert to UTC ISO strings for proper database querying
+      const getLocalDayBounds = (date: Date) => {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const day = date.getDate();
+        
+        // Start of local day
+        const startOfDay = new Date(year, month, day, 0, 0, 0, 0);
+        // Start of next local day (exclusive upper bound)
+        const startOfNextDay = new Date(year, month, day + 1, 0, 0, 0, 0);
+        
+        return {
+          start: startOfDay.toISOString(),
+          end: startOfNextDay.toISOString(),
+          dateStr: `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+        };
+      };
 
+      const today = new Date();
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayYear = yesterday.getFullYear();
-      const yesterdayMonth = String(yesterday.getMonth() + 1).padStart(2, '0');
-      const yesterdayDay = String(yesterday.getDate()).padStart(2, '0');
-      const yesterdayStr = `${yesterdayYear}-${yesterdayMonth}-${yesterdayDay}`;
+
+      const todayBounds = getLocalDayBounds(today);
+      const yesterdayBounds = getLocalDayBounds(yesterday);
 
       console.log('=== FETCHING SHOPIFY ORDERS ===');
-      console.log('Today:', todayStr, 'Yesterday:', yesterdayStr);
+      console.log('Today bounds:', todayBounds);
+      console.log('Yesterday bounds:', yesterdayBounds);
 
-      const fetchShopifyDayData = async (dateStr: string): Promise<ShopifyDayData> => {
+      const fetchShopifyDayData = async (bounds: { start: string; end: string; dateStr: string }): Promise<ShopifyDayData> => {
         try {
-          // Use date-only filtering with ::date cast to avoid timezone issues
-          // Query orders where the date part of created_at matches dateStr
+          // Query using UTC ISO timestamps for proper timezone handling
           const { data, error } = await supabase
             .from('shopify_orders')
             .select('total_price, id, created_at')
             .eq('user_id', user.id)
-            .gte('created_at', `${dateStr}T00:00:00`)
-            .lt('created_at', `${dateStr}T23:59:59.999999`);
+            .gte('created_at', bounds.start)
+            .lt('created_at', bounds.end);
 
           if (error) {
-            console.log(`Shopify orders error for ${dateStr}:`, error.message);
+            console.log(`Shopify orders error for ${bounds.dateStr}:`, error.message);
             return { grossVolume: 0, orders: 0 };
           }
 
           const totalRevenue = data?.reduce((sum, order) => sum + Number(order.total_price || 0), 0) || 0;
           const orderCount = data?.length || 0;
 
-          console.log(`Shopify ${dateStr}: orders=${orderCount}, revenue=${totalRevenue}`);
+          console.log(`Shopify ${bounds.dateStr}: orders=${orderCount}, revenue=${totalRevenue}, raw data:`, data);
 
           return {
             grossVolume: totalRevenue,
             orders: orderCount,
           };
         } catch (err) {
-          console.log(`Shopify orders exception for ${dateStr}:`, err);
+          console.log(`Shopify orders exception for ${bounds.dateStr}:`, err);
           return { grossVolume: 0, orders: 0 };
         }
       };
 
       const [yesterdayData, todayData] = await Promise.all([
-        fetchShopifyDayData(yesterdayStr),
-        fetchShopifyDayData(todayStr),
+        fetchShopifyDayData(yesterdayBounds),
+        fetchShopifyDayData(todayBounds),
       ]);
 
       console.log('=== SHOPIFY ORDERS RESULT ===');
