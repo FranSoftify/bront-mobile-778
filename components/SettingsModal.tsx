@@ -27,11 +27,13 @@ import {
   ChevronDown,
   Check,
   Eye,
+  ChevronRight,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBrontData, PerformanceView } from "@/contexts/BrontDataContext";
+import DeleteAccountSheet from "@/components/DeleteAccountSheet";
 
 interface SettingsModalProps {
   visible: boolean;
@@ -46,6 +48,7 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
   const { profile, subscriptionTier, selectedAdAccounts, adAccountFilter, setAdAccountFilter, performanceView, setPerformanceView } = useBrontData();
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [viewDropdownOpen, setViewDropdownOpen] = useState(false);
+  const [deleteAccountVisible, setDeleteAccountVisible] = useState(false);
 
   const handlePress = async (action: () => void) => {
     if (Platform.OS !== "web") {
@@ -167,15 +170,20 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
 
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => handleOpenLink("https://bront.ai/data-deletion")}
+                onPress={async () => {
+                  if (Platform.OS !== "web") {
+                    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  setDeleteAccountVisible(true);
+                }}
               >
                 <View style={styles.menuItemLeft}>
                   <View style={[styles.iconContainer, { backgroundColor: Colors.dark.danger + "20" }]}>
                     <Trash2 size={18} color={Colors.dark.danger} />
                   </View>
-                  <Text style={styles.menuItemText}>Data Deletion</Text>
+                  <Text style={[styles.menuItemText, { color: Colors.dark.danger }]}>Delete Account</Text>
                 </View>
-                <ExternalLink size={16} color={Colors.dark.textTertiary} />
+                <ChevronRight size={16} color={Colors.dark.textTertiary} />
               </TouchableOpacity>
             </View>
           </View>
@@ -471,6 +479,11 @@ export default function SettingsModal({ visible, onClose }: SettingsModalProps) 
           </View>
         </ScrollView>
       </View>
+
+        <DeleteAccountSheet
+          visible={deleteAccountVisible}
+          onClose={() => setDeleteAccountVisible(false)}
+        />
     </Modal>
   );
 }

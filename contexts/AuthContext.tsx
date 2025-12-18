@@ -96,6 +96,37 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     }
   };
 
+  const deleteAccount = async () => {
+    if (!user) {
+      throw new Error('No user logged in');
+    }
+
+    const userId = user.id;
+    console.log('Deleting account for user:', userId);
+
+    try {
+      // Delete user using admin client
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+      
+      if (deleteError) {
+        console.error('Error deleting user:', deleteError);
+        throw deleteError;
+      }
+
+      console.log('User deleted successfully');
+
+      // Sign out and clear local state
+      await supabase.auth.signOut();
+      setSession(null);
+      setUser(null);
+
+      return true;
+    } catch (error) {
+      console.error('Delete account error:', error);
+      throw error;
+    }
+  };
+
   const checkIfNewUser = async (userId: string, createdAt: string): Promise<boolean> => {
     const createdTime = new Date(createdAt).getTime();
     const now = Date.now();
@@ -280,5 +311,6 @@ export const [AuthProvider, useAuth] = createContextHook(() => {
     signOut,
     signInWithGoogle,
     signInWithApple,
+    deleteAccount,
   };
 });
